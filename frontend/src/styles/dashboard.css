@@ -1,0 +1,386 @@
+/* ============================================================
+   Design tokens - extends the teal/purple/coral system already
+   established in the architecture diagrams, so the diagram and
+   the actual product read as one designed thing, not two.
+   ============================================================ */
+:root {
+  --bg: #f5f7f6;
+  --surface: #ffffff;
+  --ink: #16231d;
+  --ink-muted: #5b665f;
+
+  --teal: #0f5c4a;
+  --teal-dark: #0a3f32;
+  --teal-tint: #e4f0ec;
+
+  --purple: #5b3fa8;
+  --purple-tint: #ede8f7;
+
+  --coral: #b8461f;
+  --coral-tint: #f7e8e1;
+
+  --border: #e1e5e3;
+  --border-strong: #c7cec9;
+
+  --font-display: "IBM Plex Serif", Georgia, serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", monospace;
+
+  --radius: 10px;
+  --radius-sm: 6px;
+  --shadow-card: 0 1px 2px rgba(22, 35, 29, 0.05), 0 1px 1px rgba(22, 35, 29, 0.04);
+}
+
+/* ============================================================
+   Shell & header
+   ============================================================ */
+.dash-shell {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 40px 20px 80px;
+  font-family: var(--font-body);
+  color: var(--ink);
+  background: var(--bg);
+  min-height: 100vh;
+}
+
+.dash-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 20px;
+  margin-bottom: 28px;
+  border-bottom: 1px solid var(--border);
+}
+
+.dash-title {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 600;
+  margin: 0 0 4px;
+}
+
+.role-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--teal-dark);
+  background: var(--teal-tint);
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+/* ============================================================
+   Buttons
+   ============================================================ */
+.btn {
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 500;
+  padding: 9px 18px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease, opacity 120ms ease;
+}
+
+.btn:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.btn-primary {
+  background: var(--teal);
+  color: #fff;
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--teal-dark);
+}
+
+.btn-secondary {
+  background: var(--purple);
+  color: #fff;
+}
+.btn-secondary:hover:not(:disabled) {
+  background: #47317f;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--ink);
+  border-color: var(--border-strong);
+}
+.btn-ghost:hover:not(:disabled) {
+  background: var(--surface);
+  border-color: var(--ink-muted);
+}
+
+.btn-text {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--teal-dark);
+  text-decoration: underline;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.btn:focus-visible,
+.field:focus-visible,
+.btn-text:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+}
+
+/* ============================================================
+   Sections & cards
+   ============================================================ */
+.section {
+  margin-top: 40px;
+}
+
+.section-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  margin: 0 0 6px;
+}
+
+.section-title {
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: 600;
+  margin: 0 0 16px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  padding: 18px 20px;
+  margin-bottom: 14px;
+}
+
+.error-banner {
+  background: var(--coral-tint);
+  color: var(--coral);
+  border: 1px solid rgba(184, 70, 31, 0.25);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+/* ============================================================
+   Forms
+   ============================================================ */
+.field {
+  font-family: var(--font-body);
+  font-size: 14px;
+  padding: 9px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.field::placeholder {
+  color: var(--ink-muted);
+}
+
+.form-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+/* ============================================================
+   Course rows
+   ============================================================ */
+.course-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.course-name {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.course-code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-muted);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  padding: 2px 7px;
+  border-radius: 5px;
+  margin-left: 8px;
+}
+
+.start-class-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ffffff;
+  flex-shrink: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .live-dot {
+    animation: pulse 1.8s ease-in-out infinite;
+  }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(0.75); }
+}
+
+/* ============================================================
+   Assignments / quizzes list rows
+   ============================================================ */
+.item-row {
+  font-size: 13px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+}
+
+.quiz-question {
+  margin-bottom: 12px;
+  padding-left: 10px;
+  border-left: 3px solid var(--purple);
+}
+
+.option-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+
+.add-btn {
+  font-size: 12px;
+  background: none;
+  border: 1px dashed var(--border-strong);
+  border-radius: 5px;
+  padding: 3px 10px;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+.add-btn:hover {
+  border-color: var(--teal);
+  color: var(--teal-dark);
+}
+
+/* ============================================================
+   Roster ledger table
+   ============================================================ */
+.ledger {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.ledger thead th {
+  text-align: left;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  background: var(--bg);
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.ledger tbody td {
+  padding: 10px 14px;
+  font-size: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.ledger tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.ledger tbody tr:hover td {
+  background: var(--bg);
+}
+
+.pct {
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+}
+.pill-ok {
+  background: var(--teal-tint);
+  color: var(--teal-dark);
+}
+.pill-risk {
+  background: var(--coral-tint);
+  color: var(--coral);
+}
+.pill-muted {
+  background: var(--bg);
+  color: var(--ink-muted);
+  border: 1px solid var(--border);
+}
+
+.footnote {
+  color: var(--ink-muted);
+  font-size: 12px;
+  margin-top: 10px;
+  line-height: 1.5;
+}
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+@media (max-width: 560px) {
+  .dash-shell {
+    padding: 24px 14px 60px;
+  }
+  .dash-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .course-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+}

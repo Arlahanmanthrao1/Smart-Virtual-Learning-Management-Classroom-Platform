@@ -1,0 +1,27 @@
+loging details
+----------------------------------------------------------------------------
+student
+{
+  "name": "Anji",
+  "email": "student1@college.edu",
+  "password": "pass1234",
+  "role": "student"
+}
+----------------------------------------------------------------------------
+faculty
+{
+  "name": "Dr. Rao",
+  "email": "rao@college.edu",
+  "password": "pass1234",
+  "role": "faculty"
+}
+----------------------------------------------------------------------------
+how to execute a project:
+backend - (cd backend ), (\venv\Scripts\Activate.ps1), (uvicorn app.main:app --reload)
+erp - (cd erp-dummy), (\venv\Scripts\Activate.ps1), (uvicorn app.main:app --reload --port 9000)
+frontend - (cd frontend), (npm i), (npm run dev)
+-----------------------------------------------------------------------------
+
+To register user 
+
+http://127.0.0.1:8000/docs

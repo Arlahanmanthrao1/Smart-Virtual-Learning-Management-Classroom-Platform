@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>College ERP — Attendance</title>
+  <meta http-equiv="refresh" content="5">
+  <style>
+    body { font-family: -apple-system, Arial, sans-serif; margin: 40px; background: #f7f7f8; color: #222; }
+    h1 { margin-bottom: 4px; }
+    .badge { font-size: 13px; color: #888; margin-bottom: 24px; }
+    table { border-collapse: collapse; width: 100%; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid #eee; }
+    th { background: #2f2f2f; color: white; font-weight: 500; }
+    .present { color: #1a7f37; font-weight: 600; }
+    .absent { color: #c0392b; font-weight: 600; }
+    .empty { padding: 24px; text-align: center; color: #999; }
+  </style>
+</head>
+<body>
+  <h1>College ERP — Attendance</h1>
+  <p class="badge">Existing college system. Records below arrive automatically from the LMS platform via API sync. Refreshes every 5s.</p>
+
+  {% if rows %}
+  <table>
+    <tr><th>Roll No</th><th>Name</th><th>Course</th><th>Duration (min)</th><th>Status</th><th>Last synced</th></tr>
+    {% for row in rows %}
+    <tr>
+      <td>{{ row.roll_no }}</td>
+      <td>{{ row.name }}</td>
+      <td>{{ row.course_code }}</td>
+      <td>{{ row.duration_minutes }}</td>
+      <td class="{{ 'present' if row.present else 'absent' }}">{{ 'Present' if row.present else 'Absent' }}</td>
+      <td>{{ row.synced_at }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <div class="empty">No attendance synced yet - join a class session on the LMS platform to see it appear here.</div>
+  {% endif %}
+</body>
+</html>
