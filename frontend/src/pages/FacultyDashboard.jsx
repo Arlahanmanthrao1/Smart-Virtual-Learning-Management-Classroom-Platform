@@ -240,11 +240,13 @@ export default function FacultyDashboard() {
       });
       navigate("/classroom", {
         state: {
+          sessionId: session.id,
           roomId: session.jitsi_room_id,
           courseId: course.id,
           courseName: course.name,
           studentId: user.id,
           studentName: user.name,
+          isFaculty: true,
         },
       });
     } catch (err) {

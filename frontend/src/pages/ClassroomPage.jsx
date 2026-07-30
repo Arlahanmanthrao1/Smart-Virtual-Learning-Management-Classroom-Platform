@@ -6,9 +6,6 @@ export default function ClassroomPage() {
   const navigate = useNavigate();
   const session = location.state;
 
-  // Guards against someone landing on /classroom directly (e.g. a page
-  // refresh) without real session data - Jitsi needs a real room ID, not
-  // nothing.
   if (!session) {
     return (
       <div style={{ padding: 40, fontFamily: "sans-serif" }}>
@@ -32,6 +29,8 @@ export default function ClassroomPage() {
         courseId={session.courseId}
         studentId={session.studentId}
         studentName={session.studentName}
+        sessionId={session.sessionId}
+        isFaculty={session.isFaculty}
       />
     </div>
   );

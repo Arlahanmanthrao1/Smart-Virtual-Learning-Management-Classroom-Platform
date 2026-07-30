@@ -4,9 +4,6 @@ from pydantic import BaseModel, ConfigDict
 
 
 class SessionEvent(BaseModel):
-    """Payload the frontend sends whenever Jitsi's IFrame API fires a
-    participant join/leave event for a class session."""
-
     room_id: str
     course_id: int
     student_id: int
@@ -36,3 +33,8 @@ class ClassSessionOut(BaseModel):
     jitsi_room_id: str
     scheduled_at: datetime
     recording_url: str | None = None
+    fullscreen_required: bool
+
+
+class FullscreenUpdate(BaseModel):
+    fullscreen_required: bool
