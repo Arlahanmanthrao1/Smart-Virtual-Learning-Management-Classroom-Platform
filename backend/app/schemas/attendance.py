@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -7,7 +8,7 @@ class SessionEvent(BaseModel):
     room_id: str
     course_id: int
     student_id: int
-    event_type: str  # "joined" or "left"
+    event_type: Literal["joined", "left"]
     timestamp: datetime
 
 
@@ -34,6 +35,7 @@ class ClassSessionOut(BaseModel):
     scheduled_at: datetime
     recording_url: str | None = None
     fullscreen_required: bool
+    ended_at: datetime | None = None
 
 
 class FullscreenUpdate(BaseModel):

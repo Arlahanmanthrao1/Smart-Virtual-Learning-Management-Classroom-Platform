@@ -1,0 +1,15 @@
+.env
+.env.*
+*.db
+*.db-*
+*.sqlite*
+*.pem
+*.key
+secrets/
+.venv/
+venv/
+__pycache__/
+**/__pycache__/
+tests/
+scripts/
+*.md

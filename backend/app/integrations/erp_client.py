@@ -10,6 +10,8 @@ def sync_attendance_to_erp(student_email: str, course_code: str, duration_minute
     that break attendance tracking inside the LMS itself. A real
     integration might instead queue failed syncs for retry.
     """
+    if not settings.erp_base_url:
+        return
     try:
         httpx.post(
             f"{settings.erp_base_url}/api/attendance/sync",

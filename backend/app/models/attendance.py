@@ -12,6 +12,7 @@ class ClassSession(Base):
     jitsi_room_id = Column(String, nullable=False, unique=True)
     scheduled_at = Column(DateTime(timezone=True), server_default=func.now())
     recording_url = Column(String, nullable=True)
+    ended_at = Column(DateTime(timezone=True), nullable=True)
     # Controls whether students are pushed into fullscreen on join. Faculty
     # can flip this off mid-class - see PATCH /attendance/sessions/{id}/fullscreen.
     fullscreen_required = Column(Boolean, default=True, nullable=False)

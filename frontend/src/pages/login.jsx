@@ -1,5 +1,7 @@
 import { useState } from "react";
+import { Icon } from "../components/dashboard/DashboardShell";
 import { useAuth } from "../context/AuthContext";
+import "../styles/dashboard.css";
 
 export default function Login() {
   const { login } = useAuth();
@@ -22,51 +24,24 @@ export default function Login() {
   };
 
   return (
-    <div style={{ maxWidth: 360, margin: "80px auto", fontFamily: "sans-serif" }}>
-      <h2>LMS Platform</h2>
-      <p style={{ color: "#666", fontSize: 14, marginBottom: 24 }}>
-        Sign in with your college email.
-      </p>
-
-      <form onSubmit={handleSubmit}>
-        <label style={{ display: "block", fontSize: 13, marginBottom: 4 }}>Email</label>
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="you@college.edu"
-          required
-          style={{ width: "100%", padding: 10, marginBottom: 16, boxSizing: "border-box" }}
-        />
-
-        <label style={{ display: "block", fontSize: 13, marginBottom: 4 }}>Password</label>
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          style={{ width: "100%", padding: 10, marginBottom: 16, boxSizing: "border-box" }}
-        />
-
-        {error && <p style={{ color: "#c0392b", fontSize: 13, marginBottom: 16 }}>{error}</p>}
-
-        <button
-          type="submit"
-          disabled={submitting}
-          style={{
-            width: "100%",
-            padding: 10,
-            background: "#0f5c4a",
-            color: "white",
-            border: "none",
-            borderRadius: 6,
-            cursor: submitting ? "default" : "pointer",
-            opacity: submitting ? 0.7 : 1,
-          }}
-        >
-          {submitting ? "Signing in..." : "Sign in"}
-        </button>
-      </form>
+    <div className="login-page">
+      <section className="login-art">
+        <div className="login-art-badge"><Icon name="courses" size={22} /> Smart Virtual Learning</div>
+        <div><h1>Your campus,<br />connected.</h1><p>Classes, attendance, coursework, and academic resources in one focused learning space.</p></div>
+      </section>
+      <section className="login-panel">
+        <div className="login-card">
+          <div className="login-logo"><span className="brand-mark"><Icon name="courses" size={22} /></span> LMS Platform</div>
+          <h2>Welcome back</h2><p>Sign in with your approved college account.</p>
+          <form onSubmit={handleSubmit} className="login-form">
+            <label className="field-label">College email<input className="field" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@hitam.org" required autoComplete="email" /></label>
+            <label className="field-label">Password<input className="field" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required autoComplete="current-password" /></label>
+            {error && <p className="error-banner">{error}</p>}
+            <button type="submit" disabled={submitting} className="btn btn-primary">{submitting ? "Signing in…" : "Sign in"}</button>
+          </form>
+          <p className="auth-switch">Need an account? Contact your college administrator.</p>
+        </div>
+      </section>
     </div>
   );
 }

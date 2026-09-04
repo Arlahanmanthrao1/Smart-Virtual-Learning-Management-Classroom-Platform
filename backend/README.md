@@ -5,6 +5,9 @@ courses, attendance, assignments, and quizzes.
 
 ## Setup
 
+For the video classroom, follow [JaaS Dev setup](JAAS_SETUP.md). JaaS credentials
+must be supplied on the backend before meetings can connect.
+
 ```bash
 python3 -m venv venv
 source venv/bin/activate          # venv\Scripts\activate on Windows
@@ -22,11 +25,33 @@ FastAPI generates this automatically from the routes and schemas.
 |---|---|---|
 | Auth | `POST /auth/register`, `POST /auth/login`, `GET /auth/me` | Registration is restricted to the `ALLOWED_EMAIL_DOMAIN` set in `.env`. Returns a JWT on login. |
 | Courses | `POST/GET /courses`, `POST /courses/{id}/enroll` | Faculty/admin create courses, students enroll. |
-| Attendance | `POST /attendance/event`, `GET /attendance/{course_id}/{student_id}` | Receives Jitsi join/leave events from the frontend. **The duration-tracking logic is a placeholder** — see the comment in `app/routers/attendance.py`. Replace with real join-timestamp-to-leave-timestamp deltas before this goes further. |
+| Attendance | `POST /attendance/event`, `GET /attendance/{course_id}/{student_id}` | Authenticated Jitsi join/leave events are paired into real elapsed durations and synchronized to the ERP. |
+| Live sessions | `POST /attendance/sessions`, `PATCH /attendance/sessions/{id}/fullscreen`, `PATCH /attendance/sessions/{id}/end` | Faculty can control fullscreen policy and durably end a class for every connected student. |
 | Assignments | `POST /assignments`, `GET /assignments/course/{id}`, `POST /assignments/submit`, `POST /assignments/submissions/{id}/grade` | Basic submit/grade flow. File upload itself isn't wired up yet — `file_url` currently expects a pre-uploaded URL (e.g. from S3). |
 | Quizzes | `POST /quizzes`, `POST /quizzes/attempt` | Auto-grades multiple-choice attempts. |
 
 ## Roles
+
+Faculty can open **My Courses → Manage enrolled students** to review and remove
+enrollments. `GET /courses/{course_id}/students` and
+`DELETE /courses/{course_id}/students/{student_id}` require the faculty owner of
+that course. Removal requires confirmation in the UI and preserves the student
+account, other enrollments, assignment submissions, quiz attempts, and attendance
+history. It is not a ban: existing self-enrollment remains available, and removal
+does not disconnect an ongoing video call. No database migration is needed.
+
+`POST /auth/register` requires an authenticated administrator and creates only
+students (a `role` field is rejected). Administrators use **Register student** in
+their dashboard, then privately share the student's login details. No automatic
+email is sent. Students have Login only; `/register` redirects to Login.
+Administrators can also use **Create faculty** in their dashboard. It calls
+`POST /auth/register-faculty`, which requires administrator access and creates only
+faculty accounts using the same domain and password validation. Faculty use the
+same login page and are directed to their teaching dashboard. Neither endpoint
+accepts a client-selected role or creates HOD/admin accounts.
+Existing accounts are unchanged; an initial administrator must be provisioned locally by an authorized
+operator. Registration checks the configured domain, not mailbox ownership.
+Further security review is needed before public deployment.
 
 Four roles live on the `User` model: `student`, `faculty`, `hod`, `admin`.
 Route access is enforced with the `require_roles(...)` dependency in
@@ -51,8 +76,6 @@ need to evolve the schema without losing data later, introduce Alembic.
 
 ## Not yet built (Phase 2 — see the AI-services module in the diagram)
 
-- Video embedding (Jitsi) on the frontend + wiring its IFrame API events
-  into `POST /attendance/event`
 - Lecture recording upload/storage
 - Whisper transcription + LLM summarization pipeline
 - Plagiarism similarity checker (`plagiarism_score` field already exists

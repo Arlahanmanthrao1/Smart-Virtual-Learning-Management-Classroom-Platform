@@ -37,16 +37,29 @@ export async function login(email, password) {
   return res.json();
 }
 
-export async function register(payload) {
-  const res = await fetch(`${API_BASE_URL}/auth/register`, {
+export async function createStudent(payload) {
+  return createAccount("/auth/register", payload);
+}
+
+export async function createFaculty(payload) {
+  return createAccount("/auth/register-faculty", payload);
+}
+
+async function createAccount(path, payload) {
+  const token = getToken();
+  const res = await fetch(`${API_BASE_URL}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body: JSON.stringify(payload),
   });
 
   if (!res.ok) {
-    const detail = await res.text();
-    throw new Error(detail);
+    const body = await res.json().catch(() => null);
+    const details = body?.detail;
+    const message = Array.isArray(details)
+      ? details.map((item) => item.msg?.replace(/^Value error, /, "") || "Invalid registration details").join(". ")
+      : details || "Registration failed";
+    throw new Error(message);
   }
   return res.json();
 }

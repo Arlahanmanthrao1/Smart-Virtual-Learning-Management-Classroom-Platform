@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { apiFetch } from "../api/client";
+import DashboardShell, { EmptyState, Icon, StatCard } from "../components/dashboard/DashboardShell";
 import { useAuth } from "../context/AuthContext";
 import "../styles/dashboard.css";
 
-const ATTENDANCE_RISK_THRESHOLD = 75; // typical college attendance policy
+const ATTENDANCE_RISK_THRESHOLD = 75;
 
 function QuizTaker({ quiz, onClose, onSubmitted }) {
   const [answers, setAnswers] = useState({});
@@ -14,53 +15,39 @@ function QuizTaker({ quiz, onClose, onSubmitted }) {
   const submit = async () => {
     setError("");
     try {
-      const res = await apiFetch("/quizzes/attempt", {
+      const response = await apiFetch("/quizzes/attempt", {
         method: "POST",
         body: JSON.stringify({ quiz_id: quiz.id, answers }),
       });
-      setResult(res);
-      onSubmitted(quiz.id, res.score);
-    } catch (err) {
-      setError(err.message);
-    }
+      setResult(response);
+      onSubmitted(quiz.id, response.score);
+    } catch (err) { setError(err.message); }
   };
 
   return (
-    <div className="card" style={{ marginTop: 10, borderColor: "var(--purple)" }}>
-      <p className="section-eyebrow" style={{ marginBottom: 2 }}>Quiz</p>
-      <h4 style={{ fontFamily: "var(--font-display)", margin: "0 0 12px" }}>{quiz.title}</h4>
-
+    <div className="quiz-taker">
+      <div className="section-title-row">
+        <div><p className="section-eyebrow">Quiz in progress</p><h4>{quiz.title}</h4></div>
+        <button className="btn btn-ghost" onClick={onClose}>Close</button>
+      </div>
       {result ? (
-        <p style={{ color: "var(--teal-dark)", fontWeight: 600, fontFamily: "var(--font-mono)" }}>
-          {result.correct}/{result.total} correct — {result.score.toFixed(0)}%
-        </p>
+        <div className="result-banner"><Icon name="check" /> Your result: {result.correct}/{result.total} correct · {result.score.toFixed(0)}%</div>
       ) : (
         <>
-          {quiz.questions.map((q, i) => (
-            <div key={q.id} className="quiz-question">
-              <p style={{ margin: "0 0 6px", fontWeight: 500 }}>{i + 1}. {q.text}</p>
-              {q.options.map((opt, idx) => (
-                <label key={idx} style={{ display: "block", fontSize: 14, marginBottom: 4 }}>
-                  <input
-                    type="radio"
-                    name={`q-${q.id}`}
-                    checked={answers[q.id] === idx}
-                    onChange={() => setAnswers({ ...answers, [q.id]: idx })}
-                  />{" "}
-                  {opt}
+          {quiz.questions.map((question, questionIndex) => (
+            <fieldset key={question.id} className="quiz-question">
+              <legend>{questionIndex + 1}. {question.text}</legend>
+              {question.options.map((option, optionIndex) => (
+                <label key={optionIndex} className="quiz-option">
+                  <input type="radio" name={`question-${question.id}`} checked={answers[question.id] === optionIndex} onChange={() => setAnswers({ ...answers, [question.id]: optionIndex })} />
+                  <span>{option}</span>
                 </label>
               ))}
-            </div>
+            </fieldset>
           ))}
           {error && <p className="error-banner">{error}</p>}
-          <div className="form-row">
-            <button onClick={submit} className="btn btn-secondary">Submit answers</button>
-            <button onClick={onClose} className="btn btn-ghost">Close</button>
-          </div>
+          <button onClick={submit} className="btn btn-primary">Submit answers</button>
         </>
-      )}
-      {result && (
-        <button onClick={onClose} className="btn btn-ghost" style={{ marginTop: 10 }}>Close</button>
       )}
     </div>
   );
@@ -69,7 +56,7 @@ function QuizTaker({ quiz, onClose, onSubmitted }) {
 export default function StudentDashboard() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-
+  const { page = "dashboard" } = useParams();
   const [courses, setCourses] = useState([]);
   const [allCourses, setAllCourses] = useState([]);
   const [enrolling, setEnrolling] = useState(null);
@@ -84,278 +71,136 @@ export default function StudentDashboard() {
   const [completedQuizzes, setCompletedQuizzes] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
 
   const loadDashboard = async () => {
     try {
-      const [enrolledCourses, everyCourse] = await Promise.all([
-        apiFetch("/courses/enrolled"),
-        apiFetch("/courses/"),
-      ]);
+      const [enrolledCourses, everyCourse] = await Promise.all([apiFetch("/courses/enrolled"), apiFetch("/courses/")]);
       setCourses(enrolledCourses);
       setAllCourses(everyCourse);
-
-      const [sessionsEntries, attendanceEntries, assignmentEntries, quizEntries, materialEntries, mySubmissions] =
-        await Promise.all([
-          Promise.all(enrolledCourses.map((c) => apiFetch(`/attendance/sessions/${c.id}`).then((s) => [c.id, s]))),
-          Promise.all(enrolledCourses.map((c) => apiFetch(`/attendance/${c.id}/${user.id}`).then((r) => [c.id, r]))),
-          Promise.all(enrolledCourses.map((c) => apiFetch(`/assignments/course/${c.id}`).then((a) => [c.id, a]))),
-          Promise.all(enrolledCourses.map((c) => apiFetch(`/quizzes/course/${c.id}`).then((q) => [c.id, q]))),
-          Promise.all(enrolledCourses.map((c) => apiFetch(`/materials/course/${c.id}`).then((m) => [c.id, m]))),
-          apiFetch("/assignments/submissions/me"),
-        ]);
-
-      setSessionsByCourse(Object.fromEntries(sessionsEntries));
-      setAttendanceByCourse(Object.fromEntries(attendanceEntries));
-      setAssignmentsByCourse(Object.fromEntries(assignmentEntries));
-      setQuizzesByCourse(Object.fromEntries(quizEntries));
-      setMaterialsByCourse(Object.fromEntries(materialEntries));
+      const [sessions, attendance, assignments, quizzes, materials, mySubmissions] = await Promise.all([
+        Promise.all(enrolledCourses.map((course) => apiFetch(`/attendance/sessions/${course.id}`).then((data) => [course.id, data]))),
+        Promise.all(enrolledCourses.map((course) => apiFetch(`/attendance/${course.id}/${user.id}`).then((data) => [course.id, data]))),
+        Promise.all(enrolledCourses.map((course) => apiFetch(`/assignments/course/${course.id}`).then((data) => [course.id, data]))),
+        Promise.all(enrolledCourses.map((course) => apiFetch(`/quizzes/course/${course.id}`).then((data) => [course.id, data]))),
+        Promise.all(enrolledCourses.map((course) => apiFetch(`/materials/course/${course.id}`).then((data) => [course.id, data]))),
+        apiFetch("/assignments/submissions/me"),
+      ]);
+      setSessionsByCourse(Object.fromEntries(sessions));
+      setAttendanceByCourse(Object.fromEntries(attendance));
+      setAssignmentsByCourse(Object.fromEntries(assignments));
+      setQuizzesByCourse(Object.fromEntries(quizzes));
+      setMaterialsByCourse(Object.fromEntries(materials));
       setSubmissions(mySubmissions);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { setError(err.message); }
+    finally { setLoading(false); }
   };
 
-  useEffect(() => {
-    if (user) loadDashboard();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  useEffect(() => { if (user) loadDashboard(); }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (courses.length === 0) return;
-    const interval = setInterval(async () => {
+    if (!courses.length) return undefined;
+    const interval = window.setInterval(async () => {
       try {
-        const entries = await Promise.all(
-          courses.map((c) => apiFetch(`/attendance/sessions/${c.id}`).then((s) => [c.id, s]))
-        );
+        const entries = await Promise.all(courses.map((course) => apiFetch(`/attendance/sessions/${course.id}`).then((data) => [course.id, data])));
         setSessionsByCourse(Object.fromEntries(entries));
-      } catch {
-        // Silent - a missed poll isn't worth surfacing an error for.
-      }
+      } catch { /* A missed poll can safely wait for the next refresh. */ }
     }, 6000);
-    return () => clearInterval(interval);
+    return () => window.clearInterval(interval);
   }, [courses]);
 
   const enroll = async (courseId) => {
     setEnrolling(courseId);
     setError("");
-    try {
-      await apiFetch(`/courses/${courseId}/enroll`, { method: "POST" });
-      await loadDashboard();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setEnrolling(null);
-    }
+    try { await apiFetch(`/courses/${courseId}/enroll`, { method: "POST" }); await loadDashboard(); }
+    catch (err) { setError(err.message); }
+    finally { setEnrolling(null); }
   };
 
   const attendancePercent = (courseId) => {
     const records = attendanceByCourse[courseId] || [];
-    if (records.length === 0) return null;
-    const present = records.filter((r) => r.present).length;
-    return Math.round((present / records.length) * 100);
+    return records.length ? Math.round((records.filter((record) => record.present).length / records.length) * 100) : null;
   };
 
-  const isAtRisk = (courseId) => {
-    const pct = attendancePercent(courseId);
-    return pct !== null && pct < ATTENDANCE_RISK_THRESHOLD;
-  };
+  const joinSession = (course, session) => navigate("/classroom", { state: {
+    sessionId: session.id, roomId: session.jitsi_room_id, courseId: course.id, courseName: course.name,
+    studentId: user.id, studentName: user.name, isFaculty: false,
+  } });
 
-  const joinSession = (course, session) => {
-    navigate("/classroom", {
-      state: {
-        sessionId: session.id,
-        roomId: session.jitsi_room_id,
-        courseId: course.id,
-        courseName: course.name,
-        studentId: user.id,
-        studentName: user.name,
-        isFaculty: false,
-      },
-    });
-  };
-
-  const submissionFor = (assignmentId) => submissions.find((s) => s.assignment_id === assignmentId);
-
+  const submissionFor = (assignmentId) => submissions.find((submission) => submission.assignment_id === assignmentId);
   const submitAssignment = async (assignmentId) => {
     const fileUrl = submitUrls[assignmentId];
     if (!fileUrl) return;
     try {
-      const newSubmission = await apiFetch("/assignments/submit", {
-        method: "POST",
-        body: JSON.stringify({ assignment_id: assignmentId, file_url: fileUrl }),
-      });
-      setSubmissions([...submissions, newSubmission]);
+      const submission = await apiFetch("/assignments/submit", { method: "POST", body: JSON.stringify({ assignment_id: assignmentId, file_url: fileUrl }) });
+      setSubmissions([...submissions, submission]);
       setSubmitUrls({ ...submitUrls, [assignmentId]: "" });
-    } catch (err) {
-      setError(err.message);
-    }
+    } catch (err) { setError(err.message); }
   };
-
   const openQuiz = async (quiz) => {
-    try {
-      const detail = await apiFetch(`/quizzes/${quiz.id}`);
-      setActiveQuiz(detail);
-    } catch (err) {
-      setError(err.message);
-    }
+    try { setActiveQuiz(await apiFetch(`/quizzes/${quiz.id}`)); }
+    catch (err) { setError(err.message); }
   };
 
-  if (loading) return <p className="dash-shell">Loading dashboard...</p>;
+  const allAssignments = Object.values(assignmentsByCourse).flat();
+  const allQuizzes = Object.values(quizzesByCourse).flat();
+  const attendanceRecords = Object.values(attendanceByCourse).flat();
+  const overallAttendance = attendanceRecords.length ? Math.round((attendanceRecords.filter((record) => record.present).length / attendanceRecords.length) * 100) : null;
+  const pendingAssignments = allAssignments.filter((assignment) => !submissionFor(assignment.id));
+  const activeClasses = courses.flatMap((course) => (sessionsByCourse[course.id] || []).filter((session) => !session.ended_at).map((session) => ({ course, session })));
+  const enrolledIds = new Set(courses.map((course) => course.id));
+  const availableCourses = allCourses.filter((course) => !enrolledIds.has(course.id));
+  const matchesSearch = (course) => `${course.name} ${course.code} ${course.department || ""}`.toLowerCase().includes(search.toLowerCase());
+  const shownCourses = useMemo(() => courses.filter(matchesSearch), [courses, search]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (loading) return <div className="loading-screen"><span className="loading-mark">LMS</span><p>Preparing your dashboard…</p></div>;
 
   return (
-    <div className="dash-shell">
-      <div className="dash-header">
-        <div>
-          <h2 className="dash-title">{user.name}</h2>
-          <span className="role-chip">Student</span>
-        </div>
-        <button onClick={logout} className="btn btn-ghost">Log out</button>
-      </div>
-
-      <div className="card" style={{ marginBottom: 24 }}>
-        <div style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: 16 }}>{user.name}</div>
-        <div style={{ color: "var(--ink-muted)", fontSize: 13, fontFamily: "var(--font-mono)" }}>{user.email}</div>
-        <div style={{ color: "var(--ink-muted)", fontSize: 13, marginTop: 4 }}>
-          {user.department || "No department set"} &middot; {user.role}
-        </div>
-      </div>
-
+    <DashboardShell user={user} title="Student Hub" roleLabel="Student" onLogout={logout} searchValue={search} onSearch={setSearch} searchPlaceholder="Search your courses…">
+      {page === "dashboard" && <section className="page-hero" id="dashboard">
+        <div><h1>Good day, {user.name}! <span className="wave">👋</span></h1><p>Here’s what’s happening across your courses.</p></div>
+        {activeClasses[0] && <button className="btn btn-primary hero-button" onClick={() => joinSession(activeClasses[0].course, activeClasses[0].session)}><Icon name="video" /> Join active class</button>}
+      </section>}
       {error && <p className="error-banner">{error}</p>}
-
-      {(() => {
-        const enrolledIds = new Set(courses.map((c) => c.id));
-        const available = allCourses.filter((c) => !enrolledIds.has(c.id));
-        if (available.length === 0) return null;
-        return (
-          <div className="section" style={{ marginTop: 0 }}>
-            <p className="section-eyebrow">Enroll</p>
-            <h3 className="section-title">Browse courses</h3>
-            {available.map((c) => (
-              <div key={c.id} className="card course-row">
-                <span>
-                  <span className="course-name" style={{ fontSize: 14 }}>{c.name}</span>
-                  <span className="course-code">{c.code}</span>
-                </span>
-                <button
-                  onClick={() => enroll(c.id)}
-                  disabled={enrolling === c.id}
-                  className="btn btn-primary"
-                >
-                  {enrolling === c.id ? "Enrolling..." : "Enroll"}
-                </button>
-              </div>
-            ))}
-          </div>
-        );
-      })()}
-
-      {courses.length === 0 && <p className="footnote">You're not enrolled in any courses yet.</p>}
-
-      {courses.map((course) => {
-        const sessions = sessionsByCourse[course.id] || [];
-        const latestSession = sessions[0];
-        const pct = attendancePercent(course.id);
-        const atRisk = isAtRisk(course.id);
-        const assignments = assignmentsByCourse[course.id] || [];
-        const quizzes = quizzesByCourse[course.id] || [];
-        const materials = materialsByCourse[course.id] || [];
-
-        return (
-          <div key={course.id} className="card" style={{ marginBottom: 20, padding: "20px 22px" }}>
-            <div className="course-row">
-              <div>
-                <span className="course-name">{course.name}</span>
-                <span className="course-code">{course.code}</span>
-                <div style={{ marginTop: 6 }}>
-                  {pct === null ? (
-                    <span className="pill pill-muted">No sessions yet</span>
-                  ) : (
-                    <span className={`pill ${atRisk ? "pill-risk" : "pill-ok"}`}>
-                      <span className="pct">{pct}%</span> attendance{atRisk && " — at risk"}
-                    </span>
-                  )}
-                </div>
-              </div>
-              {latestSession && (
-                <button onClick={() => joinSession(course, latestSession)} className="btn btn-primary start-class-btn">
-                  <span className="live-dot" />
-                  Join class
-                </button>
-              )}
-            </div>
-
-            <div style={{ marginTop: 16 }}>
-              <p className="section-eyebrow" style={{ marginBottom: 2 }}>Assignments</p>
-              {assignments.length === 0 && <p className="footnote" style={{ marginTop: 4 }}>None posted yet.</p>}
-              {assignments.map((a) => {
-                const mine = submissionFor(a.id);
-                return (
-                  <div key={a.id} className="item-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span>
-                      {a.title} <span style={{ color: "var(--ink-muted)", fontFamily: "var(--font-mono)", fontSize: 12 }}>max {a.max_marks}</span>
-                    </span>
-                    {mine ? (
-                      <span className={`pill ${mine.marks_obtained !== null ? "pill-ok" : "pill-muted"}`}>
-                        {mine.marks_obtained !== null ? `Graded ${mine.marks_obtained}` : "Awaiting grade"}
-                      </span>
-                    ) : (
-                      <div className="form-row" style={{ gap: 6 }}>
-                        <input
-                          className="field"
-                          placeholder="Paste file URL"
-                          value={submitUrls[a.id] || ""}
-                          onChange={(e) => setSubmitUrls({ ...submitUrls, [a.id]: e.target.value })}
-                          style={{ fontSize: 13, padding: "6px 10px", width: 170 }}
-                        />
-                        <button onClick={() => submitAssignment(a.id)} className="btn btn-primary" style={{ fontSize: 13, padding: "6px 12px" }}>
-                          Submit
-                        </button>
-                      </div>
-                    )}
+      {page === "dashboard" && <section className="stats-grid" aria-label="Student overview">
+        <StatCard icon="courses" label="Enrolled courses" value={courses.length} tone="blue" />
+        <StatCard icon="check" label="Overall attendance" value={overallAttendance === null ? "—" : `${overallAttendance}%`} tone="green" detail="Target: 75%" />
+        <StatCard icon="assignments" label="Pending assignments" value={pendingAssignments.length} tone="red" />
+        <StatCard icon="quiz" label="Available quizzes" value={allQuizzes.length} tone="amber" />
+      </section>}
+      {page === "dashboard" && <><div className="page-actions"><Link className="btn btn-primary" to="/student/courses">Open my courses</Link><Link className="btn btn-soft" to="/student/assignments">View assignments</Link><Link className="btn btn-soft" to="/student/quizzes">Take a quiz</Link></div><section className="section"><h2 className="section-title">Live classes</h2>{!activeClasses.length && <EmptyState>No classes are live right now.</EmptyState>}{activeClasses.map(({ course, session }) => <div className="active-class-card" key={session.id}><div><span className="pill pill-live">Live now</span><h3>{course.name}</h3></div><button className="btn btn-primary" onClick={() => joinSession(course, session)}>Join now</button></div>)}</section></>}
+      <div className={page === "courses" ? "content-grid" : "page-grid"}>
+        <div className="content-stack">
+          {page !== "dashboard" && <section className="section" id={page}>
+            <div className="section-title-row"><div><p className="section-eyebrow">Your enrolled courses</p><h2 className="section-title">{{ courses: "My courses", assignments: "Course assignments", quizzes: "Course quizzes", materials: "Course study guides" }[page]}</h2></div></div>
+            {page === "courses" && activeClasses.map(({ course, session }) => <div className="active-class-card" key={session.id}><span className="active-class-icon"><Icon name="video" /></span><div><span className="pill pill-live">Live now</span><h3>{course.name}</h3><p>{course.code} · Attendance starts when you enter</p></div><button className="btn btn-primary" onClick={() => joinSession(course, session)}>Join now</button></div>)}
+            {!shownCourses.length && <EmptyState>{search ? "No enrolled course matches your search." : "You are not enrolled in a course yet."}</EmptyState>}
+            <div className="course-list">
+              {shownCourses.map((course) => {
+                const percentage = attendancePercent(course.id);
+                const atRisk = percentage !== null && percentage < ATTENDANCE_RISK_THRESHOLD;
+                const assignments = assignmentsByCourse[course.id] || [];
+                const quizzes = quizzesByCourse[course.id] || [];
+                const materials = materialsByCourse[course.id] || [];
+                return <article className="card course-card" key={course.id}>
+                  <div className="course-row"><div><span className="course-name">{course.name}</span><span className="course-code">{course.code}</span><div className="course-meta"><span>{course.department || "Department not set"}</span><span>{course.semester || "Semester not set"}</span></div></div><span className={`pill ${atRisk ? "pill-risk" : percentage === null ? "pill-muted" : "pill-ok"}`}>{percentage === null ? "No attendance yet" : `${percentage}% attendance${atRisk ? " · at risk" : ""}`}</span></div>
+                  <div className="page-grid">
+                    {page === "assignments" && <div><p className="mini-heading">Assignments</p>{!assignments.length && <p className="footnote">Nothing posted yet.</p>}{assignments.map((assignment) => { const mine = submissionFor(assignment.id); return <div className="item-row" key={assignment.id}><div className="split-row"><span>{assignment.title}</span>{mine && <span className={`pill ${mine.marks_obtained !== null ? "pill-ok" : "pill-muted"}`}>{mine.marks_obtained !== null ? `${mine.marks_obtained}/${assignment.max_marks}` : "Awaiting grade"}</span>}</div>{!mine && <div className="inline-submit"><input className="field" type="url" placeholder="Paste your file URL" value={submitUrls[assignment.id] || ""} onChange={(event) => setSubmitUrls({ ...submitUrls, [assignment.id]: event.target.value })} /><button className="btn btn-soft" onClick={() => submitAssignment(assignment.id)}>Submit</button></div>}</div>; })}</div>}
+                    {page === "quizzes" && <div><p className="mini-heading">Quizzes</p>{!quizzes.length && <p className="footnote">Nothing posted yet.</p>}{quizzes.map((quiz) => <div className="item-row split-row" key={quiz.id}><span>{quiz.title}</span>{completedQuizzes[quiz.id] !== undefined ? <span className="pill pill-ok">{completedQuizzes[quiz.id].toFixed(0)}%</span> : <button className="btn-text" onClick={() => openQuiz(quiz)}>Take quiz →</button>}</div>)}</div>}
                   </div>
-                );
+                  {page === "materials" && <div><p className="mini-heading">Study guide</p>{!materials.length && <p className="footnote">No materials uploaded yet.</p>}<div className="material-links">{materials.map((material) => <a key={material.id} href={material.file_url} target="_blank" rel="noreferrer"><Icon name="material" size={16} /><span>{material.title}</span><small>{material.material_type}</small></a>)}</div></div>}
+                  {page === "quizzes" && activeQuiz && quizzes.some((quiz) => quiz.id === activeQuiz.id) && <QuizTaker quiz={activeQuiz} onClose={() => setActiveQuiz(null)} onSubmitted={(quizId, score) => setCompletedQuizzes({ ...completedQuizzes, [quizId]: score })} />}
+                </article>;
               })}
             </div>
-
-            <div style={{ marginTop: 16 }}>
-              <p className="section-eyebrow" style={{ marginBottom: 2 }}>Quizzes</p>
-              {quizzes.length === 0 && <p className="footnote" style={{ marginTop: 4 }}>None posted yet.</p>}
-              {quizzes.map((q) => (
-                <div key={q.id} className="item-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span>{q.title}</span>
-                  {completedQuizzes[q.id] !== undefined ? (
-                    <span className="pill pill-ok">Completed {completedQuizzes[q.id].toFixed(0)}%</span>
-                  ) : (
-                    <button onClick={() => openQuiz(q)} className="btn btn-secondary" style={{ fontSize: 13, padding: "6px 12px" }}>
-                      Take quiz
-                    </button>
-                  )}
-                </div>
-              ))}
-              {activeQuiz && quizzes.some((q) => q.id === activeQuiz.id) && (
-                <QuizTaker
-                  quiz={activeQuiz}
-                  onClose={() => setActiveQuiz(null)}
-                  onSubmitted={(quizId, score) => setCompletedQuizzes({ ...completedQuizzes, [quizId]: score })}
-                />
-              )}
-            </div>
-
-            <div style={{ marginTop: 16 }}>
-              <p className="section-eyebrow" style={{ marginBottom: 2 }}>Study guide</p>
-              {materials.length === 0 && <p className="footnote" style={{ marginTop: 4 }}>No materials uploaded yet.</p>}
-              {materials.map((m) => (
-                <div key={m.id} className="item-row">
-                  <span className="pill pill-muted" style={{ marginRight: 8 }}>{m.material_type}</span>
-                  <a href={m.file_url} target="_blank" rel="noreferrer" className="btn-text">{m.title}</a>
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-      })}
-    </div>
+          </section>}
+        </div>
+        <aside className="content-stack">
+          {page === "dashboard" && (<section className="card panel-card profile-card"><div className="profile-card-avatar">{user.name.split(" ").map((part) => part[0]).join("").slice(0, 2)}</div><h3>{user.name}</h3><p>{user.email}</p><span className="pill pill-muted">{user.department || "Department not set"}</span></section>)}
+          {page === "dashboard" && (<section className="card panel-card"><div className="section-title-row"><h3>Attendance overview</h3><Icon name="chart" /></div><div className="attendance-number">{overallAttendance === null ? "—" : `${overallAttendance}%`}</div><div className="split-row footnote"><span>Overall attendance</span><span>Target 75%</span></div><div className="progress-track"><div className={`progress-fill ${overallAttendance !== null && overallAttendance < 75 ? "risk" : ""}`} style={{ width: `${overallAttendance || 0}%` }} /></div></section>)}
+          {page === "courses" && (<section className="card panel-card"><div className="section-title-row"><h3>Browse courses</h3><Icon name="courses" /></div>{!availableCourses.length && <p className="footnote">You’re enrolled in every available course.</p>}{availableCourses.filter(matchesSearch).map((course) => <div className="item-row split-row" key={course.id}><div><strong>{course.name}</strong><div className="footnote">{course.code}</div></div><button className="btn btn-soft" disabled={enrolling === course.id} onClick={() => enroll(course.id)}>{enrolling === course.id ? "Adding…" : "Enroll"}</button></div>)}</section>)}
+        </aside>
+      </div>
+    </DashboardShell>
   );
 }

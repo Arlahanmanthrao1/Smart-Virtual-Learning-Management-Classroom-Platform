@@ -1,0 +1,19 @@
+# Local credentials and generated artifacts.
+.env
+.env.*
+!.env.example
+.claude/
+secrets/
+*.pem
+*.key
+.venv/
+venv/
+node_modules/
+dist/
+.jaas-build-check/
+__pycache__/
+*.pyc
+.vercel/
+*.db
+*.db-*
+*.sqlite*

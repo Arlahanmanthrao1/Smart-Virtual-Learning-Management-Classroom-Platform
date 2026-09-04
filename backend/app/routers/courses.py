@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.course import Course, Enrollment
 from app.models.user import User, UserRole
 from app.schemas.course import CourseCreate, CourseOut, EnrollmentOut
+from app.schemas.user import UserOut
 from app.core.deps import get_current_user, require_roles
 
 router = APIRouter(prefix="/courses", tags=["courses"])
@@ -78,3 +79,48 @@ def enroll(
     db.commit()
     db.refresh(enrollment)
     return enrollment
+
+
+def _require_owned_course(course_id: int, current_user: User, db: Session) -> Course:
+    course = db.query(Course).filter(Course.id == course_id).first()
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    if course.faculty_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only manage students in your own courses")
+    return course
+
+
+@router.get("/{course_id}/students", response_model=list[UserOut])
+def list_course_students(
+    course_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(UserRole.faculty)),
+):
+    _require_owned_course(course_id, current_user, db)
+    return (
+        db.query(User)
+        .join(Enrollment, Enrollment.student_id == User.id)
+        .filter(Enrollment.course_id == course_id)
+        .distinct()
+        .order_by(User.name, User.id)
+        .all()
+    )
+
+
+@router.delete("/{course_id}/students/{student_id}", status_code=204)
+def remove_course_student(
+    course_id: int,
+    student_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(UserRole.faculty)),
+):
+    """Remove only the enrollment, preserving the account and academic history."""
+    _require_owned_course(course_id, current_user, db)
+    removed = db.query(Enrollment).filter(
+        Enrollment.course_id == course_id, Enrollment.student_id == student_id
+    ).delete(synchronize_session=False)
+    if not removed:
+        db.rollback()
+        raise HTTPException(status_code=404, detail="Student is not enrolled in this course")
+    db.commit()
+    return Response(status_code=204)
