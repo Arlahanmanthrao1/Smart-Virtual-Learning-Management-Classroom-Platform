@@ -1,7 +1,7 @@
 from pydantic import BaseModel, EmailStr, ConfigDict, Field, field_validator
 
 from app.models.user import UserRole
-from app.config import settings
+from app.schemas.institution import InstitutionOut
 
 
 class UserCreate(BaseModel):
@@ -31,9 +31,6 @@ class UserCreate(BaseModel):
     @classmethod
     def validate_college_email(cls, v: str) -> str:
         v = v.lower()
-        domain = v.split("@")[-1]
-        if domain != settings.allowed_email_domain.lower():
-            raise ValueError(f"Email must belong to the {settings.allowed_email_domain} domain")
         return v
 
     @field_validator("department")
@@ -53,3 +50,5 @@ class UserOut(BaseModel):
     email: EmailStr
     role: UserRole
     department: str | None = None
+    institution_id: int | None = None
+    institution: InstitutionOut | None = None

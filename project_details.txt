@@ -1,27 +1,661 @@
-loging details
-----------------------------------------------------------------------------
-student
-{
-  "name": "Anji",
-  "email": "student1@college.edu",
-  "password": "pass1234",
-  "role": "student"
-}
-----------------------------------------------------------------------------
-faculty
-{
-  "name": "Dr. Rao",
-  "email": "rao@college.edu",
-  "password": "pass1234",
-  "role": "faculty"
-}
-----------------------------------------------------------------------------
-how to execute a project:
-backend - (cd backend ), (\venv\Scripts\Activate.ps1), (uvicorn app.main:app --reload)
-erp - (cd erp-dummy), (\venv\Scripts\Activate.ps1), (uvicorn app.main:app --reload --port 9000)
-frontend - (cd frontend), (npm i), (npm run dev)
+SMART VIRTUAL LEARNING MANAGEMENT & CLASSROOM PLATFORM
+Project details and modification log
+Updated: 04 September 2026 (Asia/Kolkata)
+=============================================================================
+
+1. PROJECT LINKS
 -----------------------------------------------------------------------------
+Live login:
+https://smart-virtual-lms-frontend-ruby.vercel.app/login
 
-To register user 
+Hosted backend / health check:
+https://smart-virtual-lms-backend-gules.vercel.app/
 
-http://127.0.0.1:8000/docs
+GitHub repository:
+https://github.com/Arlahanmanthrao1/Smart-Virtual-Learning-Management-Classroom-Platform
+
+Neon database console (sign in to manage your database and connection settings):
+https://console.neon.tech/
+
+8x8 JaaS / Jitsi console (sign in to manage your video application and API keys):
+https://jaas.8x8.vc/
+
+Vercel console (sign in to manage projects, deployments and environment settings):
+https://vercel.com/dashboard
+
+These are public console entry links, not database connection strings or
+credentials. Never paste private keys or connection strings into this file.
+
+Latest application update pushed to main today: a9ddbc1
+https://github.com/Arlahanmanthrao1/Smart-Virtual-Learning-Management-Classroom-Platform/commit/a9ddbc180a6256d3dba42db5a361e5111acf0196
+
+The commit above contains the application changes. This documentation update
+is a subsequent local edit until it is separately committed and pushed.
+
+2. TODAY'S COMPLETED CHANGES
+-----------------------------------------------------------------------------
+A. Administrator-managed accounts
+- Added a separate Create faculty option, alongside Register student.
+- Only an authenticated administrator can create student/faculty accounts.
+- Registration accepts the configured college domain, currently @hitam.org.
+- The server assigns the role; clients cannot request admin/HOD privileges.
+- Faculty sign in through the same login page and reach the faculty dashboard.
+- Password confirmation, duplicate-email errors, and creation feedback are shown.
+- No automatic credentials email is sent. Share login details privately.
+- There is no public self-registration page and no default demo login.
+
+Relevant endpoints:
+POST /auth/register          - administrator creates a student
+POST /auth/register-faculty  - administrator creates a faculty account
+POST /auth/login             - existing account login
+GET  /auth/me                - authenticated profile
+
+Official authentication reference:
+https://fastapi.tiangolo.com/tutorial/security/oauth2-jwt/
+
+B. Separate dashboard pages
+- Replaced sidebar scroll targets with individual page URLs for all four roles.
+- The dashboard is now an overview; forms and detailed lists have their own pages.
+- Added active navigation highlighting and page headings.
+- Role-specific routing, deep links and browser history use React Router.
+- No dummy dashboard statistics or accounts were added.
+
+Page paths (append to https://smart-virtual-lms-frontend-ruby.vercel.app):
+Admin:   /admin, /admin/users, /admin/register-student,
+         /admin/register-faculty, /admin/departments, /admin/courses,
+         /admin/materials
+Student: /student, /student/courses, /student/assignments,
+         /student/quizzes, /student/materials
+Faculty: /faculty, /faculty/courses, /faculty/create-course,
+         /faculty/assignments, /faculty/quizzes, /faculty/grading,
+         /faculty/roster
+HOD:     /hod, /hod/students, /hod/faculty, /hod/courses, /hod/attendance
+
+The classroom remains at /classroom and is entered through the session workflow.
+HOD pages display existing department data and attendance-based insights, not AI.
+
+Official navigation reference (the project uses React Router v6):
+https://reactrouter.com/6.30.1/components/nav-link
+
+C. Faculty can remove a course enrollment
+Workflow: My Courses > Manage enrolled students > Remove from course >
+          Confirm removal.
+- The enrolled-student list comes from the backend, not the general directory.
+- Only the faculty owner of that course can list/remove its enrollments through
+  these new endpoints. Other faculty and non-faculty roles are rejected.
+- A confirmation names the student and course before removal.
+- Loading, empty, error, refresh and success states are included.
+- Removal affects only the selected student's enrollment in that course.
+- The account, other enrollments, submissions, quiz attempts and attendance
+  history are preserved. No database schema migration was required.
+- Removal is NOT a ban: the existing self-enrollment option remains available.
+- Removal does NOT disconnect an already-running video call.
+
+Relevant endpoints:
+GET    /courses/{course_id}/students
+DELETE /courses/{course_id}/students/{student_id}
+
+D. Deployment and GitHub delivery
+- Published the updated frontend and backend to the existing Vercel projects.
+- Pushed the application updates to GitHub main in commit a9ddbc1.
+- Added ignore rules and stopped tracking local .env files, databases, Python
+  environments/caches and node_modules. Local copies were kept on this device.
+- Kept .env.example templates so a fresh checkout can be configured safely.
+- GitHub is now up to date with the application changes; publishing on Vercel
+  still uses local-folder CLI deployments. Git auto-deployment was not enabled
+  by the push.
+- Previously committed sensitive files remain in older Git history. Rotate any
+  real exposed credentials; untracking does not erase historical exposure.
+
+Official deployment and repository-safety references:
+https://vercel.com/docs/cli/deploy
+https://vercel.com/docs/frameworks/backend/fastapi
+https://docs.github.com/en/get-started/git-basics/ignoring-files
+https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/removing-sensitive-data-from-a-repository
+
+3. CURRENT INTEGRATION STATUS INCLUDED IN THIS BUILD
+-----------------------------------------------------------------------------
+- Frontend: React + Vite, hosted on Vercel.
+- Backend: FastAPI, hosted as a separate Vercel project.
+- Production database: hosted Neon PostgreSQL. Local development defaults to
+  SQLite unless DATABASE_URL is changed.
+- Video: Jitsi IFrame integration with JaaS configured for development/testing.
+  The backend signs participant JWTs with RS256; private signing keys stay on
+  the backend. The browser receives a meeting-specific token, not the key.
+- JaaS configuration includes VIDEO_PROVIDER, JAAS_APP_ID, JAAS_API_KEY_ID,
+  JAAS_PRIVATE_KEY or JAAS_PRIVATE_KEY_PATH, and JAAS_TOKEN_EXPIRE_MINUTES.
+- Token expiry is not a promise of meeting duration or participant capacity.
+- Classroom code includes student fullscreen handling, faculty fullscreen-policy
+  controls, explicit session ending, and disconnect diagnostics.
+- The erp-dummy folder is an OPTIONAL SIMULATION with seeded demo records.
+  It is not a real college ERP and is not part of the hosted production setup.
+  ERP_BASE_URL remains empty unless a reachable integration is configured.
+- Turning off the developer's device does not stop the hosted LMS. Localhost
+  services stop being reachable; hosted services remain subject to availability
+  and account-plan limits.
+
+Official technology references:
+Vite: https://vite.dev/guide/
+Neon / Python connection guide: https://neon.com/docs/guides/python
+Jitsi IFrame API: https://jitsi.github.io/handbook/docs/dev-guide/dev-guide-iframe/
+JaaS API keys: https://developer.8x8.com/jaas/docs/api-keys-overview/
+JaaS key setup: https://developer.8x8.com/jaas/docs/api-keys-generate-add/
+JaaS backend integration: https://developer.8x8.com/jaas/docs/api-key-backend/
+
+These official links explain the technologies. Project implementation claims
+above are based on this repository and the recorded deployment/test results,
+not endorsements or capacity guarantees from the technology providers.
+
+4. VERIFICATION RECORDED TODAY
+-----------------------------------------------------------------------------
+- 37 backend tests passed using isolated test databases, not real accounts.
+- Tests cover account creation, JaaS token setup, first-admin setup and course
+  enrollment removal, including ownership checks and preservation of history.
+- Non-browser checks passed for 24 page URLs, sidebar links, active state,
+  headings and role-specific route matching.
+- Frontend production build succeeded.
+- Vercel reported both latest application deployments Ready.
+- GitHub main matched local commit a9ddbc1 after the push.
+- These checks do not establish support for 150 students per class or many
+  simultaneous classes. College-scale load testing has NOT been completed.
+
+5. CURRENT LOGIN AND LOCAL RUN INSTRUCTIONS
+-----------------------------------------------------------------------------
+Do not store passwords, private keys or a real Neon connection string here.
+Use actual accounts created by the administrator, not the old sample logins.
+
+First administrator (only if the deployed database has no administrator):
+From backend/, run:
+  .\.venv\Scripts\python.exe scripts/create_first_admin.py --email YOUR_COLLEGE_EMAIL --clipboard
+Replace YOUR_COLLEGE_EMAIL with the intended real administrator email. Follow
+the hidden-input prompts; copy the complete Neon connection string from the
+correct database. The bootstrap password requires at least 12 characters and
+at most 72 UTF-8 bytes. The script refuses to overwrite an existing account.
+This is an instruction, not a claim that an administrator was created today.
+
+Local backend (PowerShell, start from the repository root):
+  cd backend
+  python -m venv .venv
+  .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+Create backend/.env from backend/.env.example ONLY if .env does not already
+exist. Edit its real settings privately; do not overwrite existing credentials.
+Then run:
+  .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8000
+Local API documentation: http://localhost:8000/docs
+Documentation is disabled on Vercel. Account creation still requires admin
+authentication even when using the local API documentation.
+
+Local frontend (a second terminal, start from the repository root):
+  cd frontend
+  npm ci
+Create frontend/.env from frontend/.env.example ONLY if it is missing.
+Use VITE_API_BASE_URL=http://localhost:8000 for the local backend. Then run:
+  npm run dev
+Open the local URL printed by Vite (normally http://localhost:5173).
+
+Virtual-environment activation is optional when using the explicit python.exe
+commands above. If needed from the repository root, the correct command is:
+  .\backend\.venv\Scripts\Activate.ps1
+Note the separator between backend and .venv. Git does not require activation.
+
+Further repository setup guides: backend/JAAS_SETUP.md, backend/README.md and
+VERCEL_DEPLOYMENT.md. For delivery status, use the dated update in this file;
+older setup notes may describe steps before the latest push/deployment.
+
+6. NOT COMPLETED / NOT CLAIMED AS WORKING TODAY
+-----------------------------------------------------------------------------
+- College-hosted Jitsi infrastructure and verified college-scale capacity.
+- AI plagiarism detection and AI-generated lecture summaries.
+- Real browser file uploads (current workflows use hosted file URLs).
+- A real hosted college ERP connection (the optional service is simulated).
+- A complete production security audit and migration-managed schema lifecycle.
+- Automatic GitHub-to-Vercel deployment and rewriting old sensitive Git history.
+
+Student and staff registration remains administrator-managed. The new
+institution-only onboarding workflow is documented below.
+
+7. MULTI-INSTITUTION BUILD — 4 SEPTEMBER 2026 (LOCAL, NOT DEPLOYED)
+-----------------------------------------------------------------------------
+- Added institution registration with profile and first administrator creation.
+- Added institution name, official contact email, domain, HTTPS logo URL and address.
+- Added separate institution profile, department creation and HOD creation pages.
+- Admins create student/faculty/HOD accounts and edit names/departments only
+  within their own institution. Students and staff cannot self-register.
+- HODs have read-only access to their department faculty/students; no admin powers.
+- Faculty see their own courses and currently enrolled students. Attendance
+  aggregates exclude other faculty courses. Students see their own records.
+- Server-side checks now cover courses, coursework, grades, materials,
+  attendance, enrollment and JaaS meeting connections across institution boundaries.
+- Course codes can repeat between institutions. Email domains identify institutions;
+  multiple institutions sharing one email domain are not yet supported.
+- Existing local SQLite records (2 accounts, 3 courses) were backed up and assigned
+  to HITAM / hitam.org. Account credentials and course identities were verified
+  unchanged. No administrator was invented or existing account promoted.
+- HITAM official contact email is still needed; a domain alone is not an email.
+- Local HITAM currently has no admin. A protected first-institution-admin setup
+  command is included; instructions and backup location: INSTITUTION_SETUP.md.
+- Existing Neon database and Vercel deployment were NOT changed. Back up and
+  migrate the hosted database before deploying this release.
+- Institution ownership verification, onboarding abuse prevention and real file
+  uploads are not implemented. Institution logos currently use hosted image links.
+- ERP sync now requires an explicit owning institution ID; it cannot receive
+  attendance from unrelated institutions.
+- Branding is the next phase, not claimed as completed in this build.
+- Full setup, access matrix, migration/deployment gates and limitations:
+  INSTITUTION_SETUP.md. Existing official console links above remain unchanged.
+
+8. EKEEKRTA BRANDING — 4 SEPTEMBER 2026 (LOCAL, NOT DEPLOYED)
+-----------------------------------------------------------------------------
+- User selected EKEEKRTA as the institution-neutral platform name.
+- Tagline: One platform. Every learning connection.
+- Added a geometric E monogram, SVG favicon and shared wordmark components.
+- Applied branding to login, institution registration, dashboard navigation,
+  loading states, page titles and classroom application-name settings.
+- Institution names and logos remain separate from the EKEEKRTA identity.
+- Refined the navy/blue/mint theme while preserving the existing dashboard layout,
+  IBM Plex typography, forms, navigation and status colours.
+- Browser metadata is generated from the shared brand configuration.
+- No dummy records or unsupported marketing claims were added.
+- Vercel/Neon remain unchanged. Trademark clearance and domain purchase are not
+  completed or implied. Brand usage and implementation notes: BRANDING.md.
+
+9. INSTITUTION LOGIN ADDRESSES — 4 SEPTEMBER 2026 (LOCAL, NOT DEPLOYED)
+-----------------------------------------------------------------------------
+- Chosen address: https://ekeekrta.hitam.org/login. Other institutions use
+  https://ekeekrta.<their-registered-email-domain>/login.
+- Institution login reads real profile branding from an operator-approved host
+  mapping. Unknown hosts block sign-in instead of showing a generic portal.
+- Login and authenticated API requests enforce institution membership; custom
+  portal sessions are bound to their login host. Main-site login still works.
+- Registration remains on the main site only; institution portals cannot create
+  another institution. Student/faculty/HOD accounts remain admin-managed.
+- Admin Institution Profile now shows the proposed login address and configuration
+  state, explicitly distinct from public DNS/HTTPS availability.
+- INSTITUTION_LOGIN_HOSTS defaults to empty. A commented example is included in
+  backend/.env.example; no private environment or live settings were modified.
+- Domain/tenant ownership review and HITAM DNS administrator approval are required
+  before enabling this address. No DNS, GitHub, Vercel or Neon changes were made.
+- Setup and release gates: INSTITUTION_SETUP.md. No dummy application data added.
+- Verified locally: 66 backend tests; 26 dashboard route checks; institution-host
+  routing/header and sign-in rendering checks; production build and branding
+  metadata checks. No interactive browser or public-domain test was performed.
+- Official Vercel domain instructions:
+  https://vercel.com/docs/domains/working-with-domains/add-a-domain
+
+10. PUBLIC EKEEKRTA RELEASE — 4 SEPTEMBER 2026, APPROX. 22:06 IST
+-----------------------------------------------------------------------------
+- Published branding, institution onboarding, scoped role dashboards and custom
+  institution-host support to the existing public Vercel projects.
+- Login: https://smart-virtual-lms-frontend-ruby.vercel.app/login
+- Backend: https://smart-virtual-lms-backend-gules.vercel.app
+- Neon was backed up, fully restored to an isolated PostgreSQL 18 test server,
+  migration-rehearsed, upgraded under maintenance and verified against the backup.
+- Preserved six existing accounts, their credentials, one course, and all other
+  existing academic records. Assigned legacy records to confirmed owner HITAM.
+- Private verified backup location and deployment IDs: INSTITUTION_SETUP.md.
+- Public page branding, API health, authentication gates, CORS and unconfigured
+  domain rejection checked successfully. No browser login/video test claimed.
+- Final regression checks: 70 backend tests passed; frontend build, 26 dashboard
+  routes, branding metadata and institution-host request checks passed.
+- https://ekeekrta.hitam.org/login is NOT active: institutional DNS approval and
+  explicit operator host configuration are still required.
+- Existing secrets were preserved. No dummy application data, GitHub push or
+  automatic deployment reconnection. Sections 7–9 describe the earlier local phase;
+  this release supersedes their not-deployed status.
+
+11. GOOGLE COLLEGE SIGN-IN — 4 SEPTEMBER 2026 (DEPLOYED, ACTIVATION PENDING)
+-----------------------------------------------------------------------------
+- Added a Google college-account option to the public login page. It is visibly
+  disabled until a real GOOGLE_CLIENT_ID is configured; password login still works.
+- Uses the official Google Identity Services button and backend ID-token checks
+  for signature, audience, issuer, expiry, nonce and verified Workspace domain.
+- Google login requires an existing institution account. It never registers new
+  users, changes roles or bypasses institution restrictions. Personal Gmail is denied.
+- First valid sign-in links the stable Google subject to the existing account;
+  a different Google identity cannot silently take over a previously linked email.
+- Added an empty google_identities table; existing production records/passwords
+  verified unchanged. Production was backed up before this additive change.
+- 79 backend tests passed, including real RSA signature validation in isolated
+  tests. Frontend build, routes, branding and script load/retry checks passed.
+- Real Google browser sign-in is NOT yet verified; Google OAuth Web client setup
+  and authorized origins are required. No client secret is needed for this flow.
+- Setup steps, official Google links and release details: GOOGLE_SIGN_IN_SETUP.md.
+
+12. ROLE-SCOPED CALENDARS — 4 SEPTEMBER 2026 (DEPLOYED)
+-----------------------------------------------------------------------------
+- Added separate Calendar pages for students, faculty and HODs with month
+  navigation, Today, a selected-date agenda and responsive mobile layout.
+- Displays actual assignment due dates and class session start dates only.
+  No invented schedule, quiz dates, attendance status or demonstration events.
+- Students see enrolled courses; faculty see owned courses; HODs see only their
+  department. Institution boundaries are checked on the server for every request.
+- Faculty can enter an optional assignment deadline when posting coursework.
+  Dates are normalized to UTC and displayed in the viewer's local timezone.
+- Calendars refresh every 30 seconds; include loading, empty, error/retry states.
+- Read-only calendar aggregation uses existing tables; no schema migration,
+  production database edits or new application records required.
+- Verified isolated backend scope/date tests, frontend calendar rendering/date
+  checks, all 29 dashboard routes and the production build. Browser QA not run.
+- Published to the existing public Vercel projects after explicit approval.
+- Login: https://smart-virtual-lms-frontend-ruby.vercel.app/login
+- Student, faculty and HOD calendar URLs return the current application; public
+  bundle includes calendar and deadline features. Backend health returns 200;
+  unauthenticated calendar requests return 401. No browser login test claimed.
+- Backend deployment: dpl_GctLPDx7TySPjcyj32FPftJoAJxj
+  https://smart-virtual-lms-backend-4hpiw17c5.vercel.app
+- Frontend deployment: dpl_FmsoXENtudsvhNdy8VULjUMcmkNN
+  https://smart-virtual-lms-frontend-r83fex5au.vercel.app
+- All 86 backend tests and 29 dashboard route checks passed before publication.
+  No GitHub push, credential changes or sample application data added.
+
+13. OPTIONAL FACULTY CLASS SCHEDULING — 5 SEPTEMBER 2026 (DEPLOYED)
+-----------------------------------------------------------------------------
+- Added a separate Schedule class page for faculty. Faculty choose one of their
+  courses, a class title, and a future local date/time up to one year ahead.
+- Scheduling is optional: the existing Start class now action remains available.
+- Plans appear in enrolled students', owning faculty's, and department HOD's
+  calendars. The server enforces institution, department, enrollment, and course
+  ownership boundaries; faculty cannot schedule or start another teacher's course.
+- A planned class creates no video room or attendance session. Faculty explicitly
+  starts it when ready; students' existing live-class polling then exposes Join.
+- Start is retry-safe and returns the same active room. Course-level write locking
+  prevents two requests from creating parallel live rooms for one course.
+- Faculty can cancel an unstarted plan with confirmation. Cancelled plans disappear
+  from calendars and never affect attendance. Started classes end in the classroom.
+- Scheduled times are stored in UTC and displayed in each viewer's local timezone.
+  A plan remains at its original calendar time with scheduled/live/ended status.
+- Adds only the empty scheduled_classes table and its access index; no application
+  records, accounts, enrollments, sessions, or attendance data are added.
+- Created and verified a PostgreSQL custom-format backup, then fully restored it
+  to an isolated PostgreSQL 18 server before changing Neon:
+  C:\Users\arlah\ekeekrta-backups\class-scheduling-20260905-b2b3c29784a44b2da6e919c10496c70b\before-class-scheduling.dump
+  SHA256: 9E5595CE10DF5531FD0357A9EB8AAA36C0A129AE77A1693F4A8AEDFB5F4D26C8
+- The additive schema helper created and re-verified the empty production table;
+  existing table fingerprints were unchanged and scheduled application rows = 0.
+- 92 isolated backend tests and 30 role route checks pass; production build passes.
+  Browser interaction/video testing was not performed or claimed.
+
+14. COURSE-SPECIFIC FACULTY COURSEWORK — 5 SEPTEMBER 2026 (DEPLOYED)
+-----------------------------------------------------------------------------
+- Moved faculty Create assignment and Create quiz actions inside each card on
+  the Your Courses page; removed the two generic creation links from the sidebar.
+- The selected course is fixed and visibly named inside each creation form, so a
+  faculty member cannot accidentally choose a different course while authoring.
+- Only one course tool opens at a time; the form closes after successful creation.
+- Existing server-side course ownership checks remain authoritative. No database
+  schema, production data, student pages, grading, or quiz-taking behavior changed.
+- Both phases 13–14 were published together after explicit public approval.
+- Login: https://smart-virtual-lms-frontend-ruby.vercel.app/login
+- Backend deployment: dpl_DmhYeF1uYazkWKL1YLWprTtZa8SE
+  https://smart-virtual-lms-backend-995qz1n4e.vercel.app
+- Frontend deployment: dpl_Dh8QPoCCkjsi9oLQ9XwmH7LbYDiQ
+  https://smart-virtual-lms-frontend-qviz82r2e.vercel.app
+- Public login, faculty course/schedule, student calendar and HOD calendar routes
+  returned 200. Public bundle features and backend authentication gate verified.
+- No dummy records, credential changes, browser interaction test, or GitHub push.
+
+15. FACULTY COURSE WORKSPACES — 5 SEPTEMBER 2026 (DEPLOYED)
+-----------------------------------------------------------------------------
+- Added a dedicated `/faculty/courses/{course-id}` workspace for every course.
+  My Courses now opens the selected workspace instead of expanding tools inline.
+- Each workspace combines real course data and existing actions: start meeting,
+  schedule/start/rejoin/cancel classes, create/list assignments, view submitted
+  assignment copies and grade them, create/list quizzes, manage enrolled students,
+  and view administrator-provided notes and study materials.
+- Assignment and quiz creation remains locked to the selected course. Class plans
+  are also locked to it. Server-side faculty ownership is still authoritative.
+- Unsafe file-link schemes are not rendered as links. No new roles, permissions,
+  schema changes, records, sample content, or faculty material-upload rights.
+- Published to Vercel after explicit approval. Deployment ID:
+  `dpl_96mCfeYouGMqngmvtu2aF4VaqePu`; deployment URL:
+  `https://smart-virtual-lms-frontend-r6fqlczvj.vercel.app`.
+- Promoted to the public frontend at
+  `https://smart-virtual-lms-frontend-ruby.vercel.app/login`.
+- Verified public HTTP 200 responses for `/login`, `/faculty/courses`, and
+  `/faculty/courses/1`, plus the deployed course-workspace bundle content.
+- Production frontend build and route tests passed. No backend, database, schema,
+  or stored-data changes were required; no dummy data or GitHub push was made.
+
+16. COMPLETED CLASS HISTORY — 5 SEPTEMBER 2026 (DEPLOYED)
+-----------------------------------------------------------------------------
+- The faculty course workspace now loads up to 200 recent attendance sessions for
+  that course and separates completed meetings into a read-only Class history.
+- Each history entry shows its start time, end time, and calculated duration. An
+  ended session never renders Start class, Join now, or Rejoin class actions.
+- The course header shows Rejoin live class only while an active session exists;
+  otherwise it offers Start a new class for the next lesson.
+- Student dashboards continue polling active sessions every six seconds. Because
+  the default attendance-session endpoint excludes ended sessions, Join now is
+  removed automatically shortly after the instructor ends the class.
+- The attendance history query uses the existing institution, course ownership,
+  and enrollment access checks. No schema, database records, permissions, dummy
+  data, credentials, or production services were changed.
+- All 92 backend tests pass, including ended-session history and active-session
+  filtering. Frontend rendering checks and the production frontend build pass.
+  Published to Vercel together with phase 17 after explicit approval.
+
+17. COLLAPSIBLE DASHBOARD MENU — 5 SEPTEMBER 2026 (DEPLOYED)
+-----------------------------------------------------------------------------
+- Added an always-visible menu button to student, faculty, HOD, and administrator
+  dashboard headers. On desktop it collapses the left menu and expands content;
+  selecting it again restores the menu without changing the current page.
+- On smaller screens the same control opens the menu as an overlay. A dedicated
+  close button, backdrop click, or navigation selection closes it safely.
+- Menu controls expose expanded state and navigation relationships for assistive
+  technology. Existing role-specific navigation and permissions are unchanged.
+- No schema, data, account, permission, or dummy-content changes were required.
+- All 28 role-page rendering checks and the production frontend build pass.
+- Backend deployment: `dpl_GccwRvmDjdZqNp8VompE9d1ekEFm`
+  `https://smart-virtual-lms-backend-1eo0i1n4e.vercel.app`
+- Frontend deployment: `dpl_6hr1acU5oV456jxgBKrR9WqnDxe6`
+  `https://smart-virtual-lms-frontend-dy7x155jj.vercel.app`
+- Both deployments were promoted to the existing public aliases. Public login,
+  faculty course listing, and direct faculty course routes return HTTP 200; the
+  public bundle contains the class-history and collapsible-menu features.
+- Backend health returns `ok`; anonymous history access returns HTTP 401. No real
+  account login, video call, database mutation, credential change, or GitHub push
+  was performed during deployment verification.
+
+18. ENDED-MEETING COURSE HERO STATE — 5 SEPTEMBER 2026 (DEPLOYED)
+-----------------------------------------------------------------------------
+- The large faculty course-workspace hero is hidden when the course has completed
+  meeting history and no meeting is currently active.
+- The hero remains visible before a course has held its first meeting and while a
+  meeting is live, preserving the active Rejoin control. Completed meetings remain
+  visible only in the read-only Class history section.
+- After the hero is hidden, a compact course title remains so faculty can still
+  identify the workspace; it contains no meeting action.
+- No backend, database, schema, account, permission, or dummy-data changes.
+- Published to Vercel after explicit approval. Frontend deployment:
+  `dpl_3XT8rReCabX7pQ3FsVgBCD6NXCdC`
+  `https://smart-virtual-lms-frontend-41y2pj928.vercel.app`
+- Promoted to the existing public frontend. `/login`, `/faculty/courses`, and
+  `/faculty/courses/1` return HTTP 200, and the public bundle contains the new
+  ended-meeting course-hero state. No real-account browser login or GitHub push.
+
+19. SCHEDULED CLASS IN COURSE HERO — 5 SEPTEMBER 2026 (DEPLOYED)
+-----------------------------------------------------------------------------
+- The nearest upcoming scheduled class now appears in the faculty course hero
+  with its title and the date/time rendered in the faculty member's local zone.
+- The hero action starts that exact scheduled plan, preserving its link to the
+  course calendar and class history. A live meeting still takes priority and
+  shows Rejoin live class instead.
+- If a course has ended meetings but no live or scheduled meeting, the hero stays
+  hidden as specified in phase 18. No backend, schema, database-record, account,
+  permission, or dummy-data changes. Published with phase 20 after approval.
+
+20. SIDEBAR-INTERNAL COLLAPSE CONTROL — 5 SEPTEMBER 2026 (DEPLOYED)
+-----------------------------------------------------------------------------
+- Removed the dashboard menu control from the top header and placed a directional
+  open/close icon inside the portal sidebar.
+- Collapsing on desktop keeps a narrow rail containing navigation icons and the
+  reopen control while expanding the main content area. Tooltips identify icons.
+- On small screens the closed sidebar remains a narrow control rail; opening it
+  reveals the full menu over a backdrop, and choosing a page collapses it again.
+- Existing navigation destinations, current-page state, roles, and permissions are
+  unchanged. No backend, schema, database, account, or dummy-data changes.
+- Published to Vercel after explicit approval. Frontend deployment:
+  `dpl_GvpUSJyUqnLYkJBkzKYvVPwdg6gm`
+  `https://smart-virtual-lms-frontend-fxkjyx233.vercel.app`
+- Promoted to the existing public frontend. `/login`, `/faculty/courses`, and
+  `/faculty/courses/1` return HTTP 200; the public bundle contains both the next
+  scheduled-class hero and the sidebar-internal collapse control.
+- No real-account browser login, backend or database change, credential change,
+  dummy data, or GitHub push was performed for this release.
+
+21. INSTITUTION LOGO IN PORTAL TOPBAR — 5 SEPTEMBER 2026 (DEPLOYED)
+-----------------------------------------------------------------------------
+- The portal topbar now exclusively represents the signed-in institution: it uses
+  the institution's configured logo URL alongside its name and the account role.
+- If the institution has no logo or the image cannot load, the topbar shows a safe
+  institution-name initial badge instead of the EKEEKRTA platform mark.
+- EKEEKRTA remains visibly identified in the portal sidebar. No backend, schema,
+  database, account, permission, or dummy-data changes.
+- Published to Vercel after explicit approval. Frontend deployment:
+  `dpl_7cR9jyKcGXMYAKGCXR99AwY5Jyh9`
+  `https://smart-virtual-lms-frontend-l0tz3yqu8.vercel.app`
+- Promoted to the existing public frontend. Login and all four dashboard entry
+  routes return HTTP 200; the public bundle contains the institution logo and
+  fallback handling. No real-account login, credential change, or GitHub push.
+
+22. INSTITUTION LOGO UPLOAD DURING REGISTRATION — 5 SEPTEMBER 2026 (DEPLOYED)
+-----------------------------------------------------------------------------
+- Added a logo file chooser to institution registration for PNG, JPEG, and WebP
+  images up to 5 MB, while retaining the alternative hosted HTTPS URL field.
+- The browser resizes and compresses the selected image for the portal topbar and
+  shows a preview with a Remove logo action before registration is submitted.
+- The optimized image is stored with the institution profile in the existing
+  logo field, so it persists in Neon without relying on Vercel's temporary disk or
+  requiring a separate file-storage account. The server checks size, encoding,
+  declared image type, and file signature before accepting uploaded logo data.
+- No schema migration, accounts, institution records, or dummy data were added.
+- All 92 backend tests, frontend rendering checks, and production build passed.
+- Backend deployment: `dpl_AxkZs96pXaZBofMSz5tsrCnqpZoZ`
+  `https://smart-virtual-lms-backend-rhm48nbb2.vercel.app`
+- Frontend deployment: `dpl_BMKWfJcm7BE7SNtLNJhrN1k8412w`
+  `https://smart-virtual-lms-frontend-dt0w95f9l.vercel.app`
+- Both were promoted after explicit approval. Public `/login` and
+  `/register-institution` return HTTP 200, the public bundle contains the complete
+  upload flow, and public backend health is `ok`.
+- Staged malformed-image validation returned HTTP 422 and created no record. No
+  real registration, database mutation, credential change, or GitHub push.
+
+23. STUDENT PORTAL AREAS AND GROUPED SIDEBAR — 5 SEPTEMBER 2026 (DEPLOYED)
+-----------------------------------------------------------------------------
+- Added four student portal areas to the topbar: Home, Academics,
+  Non Academics, and AI Assistant. Selecting an area changes the sidebar to
+  show only the pages that belong to that area.
+- Home contains Dashboard, Notifications, Attendance, Marks, and Timetable.
+  Academics contains Courses, Assignments, Syllabus, Notes, and Study Material.
+  Non Academics contains Courses, Assignments, Weekly Tests, Quizzes, Marks,
+  and Leader Board · Top 10.
+- Existing course enrollment, live class joining, assignment submission, quiz
+  taking, attendance, marks, calendar events, and study resources remain backed
+  by the current APIs. Notifications are derived only from real live classes,
+  pending assignments, and available quizzes.
+- The current backend does not yet store non-academic modules or AI responses,
+  so those pages show honest empty/configuration states instead of sample data.
+- No backend, schema, database record, account, permission, or dummy-data change.
+- Published to Vercel after explicit approval. Frontend deployment:
+  `dpl_F7YWjHHceF8qMrF3KKt4bExM4wX2`
+  `https://smart-virtual-lms-frontend-kfrqm9gy3.vercel.app`
+- Promoted to the existing public frontend. `/login` returns HTTP 200 and the
+  public bundle contains Academics, Non Academics, AI Assistant, and the Top 10
+  leader-board navigation. No real-account browser login or GitHub push.
+
+24. SEPARATE STUDENT COURSE WORKSPACES — 5 SEPTEMBER 2026 (DEPLOYED)
+-----------------------------------------------------------------------------
+- Every enrolled course card now opens a dedicated student course URL and page.
+- Each page loads only that course's real assignments, quizzes, attendance,
+  active meeting, notes, previous-year questions, and other study materials.
+- Students can submit an assignment URL and take an auto-graded quiz directly
+  inside the correct course. A Join live class action appears only while that
+  course has an active meeting and continues polling for meeting changes.
+- Study materials are separated by the administrator's material type: Notes,
+  PYQs, and Other study material. Empty categories display an honest empty state.
+- Access first checks the student's enrolled-course list, while the backend also
+  enforces enrollment on every course-data request. No sample data, database
+  records, schema, account, or backend permission was changed.
+- Frontend rendering checks and the production build passed.
+- Published to Vercel after explicit approval. Frontend deployment:
+  `dpl_9AbKonowQ5LXu7wasWwJQKjnka1e`
+  `https://smart-virtual-lms-frontend-fvnsfr2j7.vercel.app`
+- Promoted to the existing public frontend. `/login` and
+  `/student/courses/1` return HTTP 200. No real-account browser login, backend
+  deployment, database mutation, credential change, or GitHub push.
+
+25. HITAM TENANT RESET — 5 SEPTEMBER 2026 (COMPLETED)
+-----------------------------------------------------------------------------
+- Permanently removed the existing HITAM / hitam.org institution from the live
+  Neon database so institution onboarding can begin again from a clean state.
+- Live deletion removed 6 user accounts, 1 course, 2 departments, 1 enrollment,
+  1 class session, 2 attendance records, and 1 scheduled class. There were no
+  live assignments, submissions, quizzes, attempts, or study materials.
+- The separate local SQLite HITAM copy was also removed: 2 accounts, 3 courses,
+  1 department, 2 enrollments, 3 sessions, and 3 attendance records.
+- The operation used a short-lived protected maintenance route and secret. Both
+  were removed immediately afterward, and the clean backend was redeployed.
+- Public backend health is `ok`, the maintenance URL returns HTTP 404, and the
+  temporary reset environment variable is absent. This deletion is permanent;
+  the institution and administrator must now be registered again.
+
+26. PROGRAMMING ASSESSMENTS — 5 SEPTEMBER 2026 (DEPLOYED)
+-----------------------------------------------------------------------------
+- Added Programming Assessments to the student Non Academics navigation.
+- Faculty can create a programming problem inside a specific course, select
+  Python, Java, C, C++, and/or JavaScript, provide optional starter code, and
+  define up to five weighted visible or hidden test cases.
+- Students can open an assessment in a dedicated compiler page, edit and run
+  code with custom input, inspect visible examples, and submit against all test
+  cases for an automatic percentage score.
+- Hidden inputs, expected outputs, program output, and diagnostics are removed
+  from student API responses. Enrollment and faculty course ownership continue
+  to be enforced by the backend.
+- Untrusted programs are sent server-side to the sandboxed Judge0 community
+  runner; they never execute inside the EKEEKRTA backend or browser. The adapter
+  supports a future authenticated or self-hosted Judge0 URL through environment
+  variables. Official documentation: https://ce.judge0.com/
+- Added persistent assessment, test-case, and submission tables. No example
+  assessments or test cases were inserted.
+- All 94 backend tests, 40 dashboard-route checks, the frontend production
+  build, and a real Python execution (`2 + 3` -> `5`) passed.
+- Backend production deployment: dpl_Ed3BukEyfXDXZk9Qj1YL694dfJkB
+  https://smart-virtual-lms-backend-e1w7yjzsq.vercel.app
+- Frontend production deployment: dpl_HEHwyV86prdadxNdY7zdim5fVDxL
+  https://smart-virtual-lms-frontend-ed5qpgdzi.vercel.app
+- Stable public aliases verified on 5 September 2026:
+  https://smart-virtual-lms-backend-gules.vercel.app
+  https://smart-virtual-lms-frontend-ruby.vercel.app
+- The public login and programming-assessment page both returned HTTP 200. The
+  protected programming API returned HTTP 401 without a login token, confirming
+  that the route is live and access control is active. This phase is included
+  in the 5 September 2026 GitHub update.
+
+-----------------------------------------------------------------------------
+27. ACADEMIC AND NON-ACADEMIC COURSE TYPES — 5 SEPTEMBER 2026 (DEPLOYED)
+-----------------------------------------------------------------------------
+- Faculty course creation now requires a Course Type selection: Academic or
+  Non-Academic. The backend stores and validates the selection; unsupported
+  values are rejected.
+- Existing course records safely default to Academic. An additive compatibility
+  upgrade adds the new field to existing SQLite or PostgreSQL databases without
+  deleting course or enrollment records.
+- Faculty course cards, course workspaces, and the administrator course table
+  display the saved type.
+- The student portal now places Academic and Non-Academic courses in their
+  matching sidebar sections. Non-Academic course, assignment, quiz, and marks
+  pages use real course data instead of placeholder content.
+- Each student course workspace returns to the correct Academic or Non-Academic
+  course list. No example institutions, users, courses, or assessments were
+  inserted.
+- All 95 backend tests, student/faculty dashboard checks, and the frontend
+  production build pass.
+- Backend production deployment: dpl_4GaF8519yGhzRNMqEdqAPxVKsYaY
+  Immutable URL: https://smart-virtual-lms-backend-ogrgxbr5p.vercel.app
+- Frontend production deployment: dpl_DMzzFVnU8ou2sE9nZoiWBYXNqvia
+  Immutable URL: https://smart-virtual-lms-frontend-o75nc0643.vercel.app
+- The stable backend health check returned HTTP 200, the protected course route
+  returned HTTP 401 without a login token, and the stable frontend login and
+  faculty course-creation routes returned HTTP 200. The deployed frontend bundle
+  contains the Course Type and Non-Academic controls. This phase is included in
+  the 5 September 2026 GitHub update.

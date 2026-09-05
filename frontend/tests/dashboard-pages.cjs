@@ -7,7 +7,8 @@ const path = require('node:path');
   const result = await build({
     entryPoints: [path.join(__dirname, 'dashboard-pages.jsx')], bundle: true,
     write: false, platform: 'node', format: 'cjs', jsx: 'automatic',
-    define: { 'process.env.NODE_ENV': '"production"' },
+    define: { 'process.env.NODE_ENV': '"production"', 'import.meta.env.VITE_API_BASE_URL': '"http://test.invalid"' },
+    loader: { '.css': 'empty' },
   });
   const test = new Module(path.join(__dirname, 'dashboard-pages.generated.cjs'), module);
   test.filename = path.join(__dirname, 'dashboard-pages.generated.cjs');

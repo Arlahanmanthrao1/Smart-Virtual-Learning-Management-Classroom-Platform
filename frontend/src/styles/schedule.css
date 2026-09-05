@@ -1,0 +1,14 @@
+.schedule-layout { display: grid; grid-template-columns: minmax(260px, 1fr) minmax(0, 1.5fr); gap: 24px; align-items: start; }
+.schedule-layout h2 { margin: 0 0 16px; font-size: 1.4rem; }
+.schedule-layout p { line-height: 1.6; }
+.schedule-layout a { color: #154eb6; }
+.schedule-list { list-style: none; margin: 0; padding: 0; }
+.schedule-list > li { border-top: 1px solid #e3e8f0; padding: 24px 0; overflow-wrap: anywhere; }
+.schedule-list h3 { margin: 8px 0; font-size: 1.15rem; }
+.schedule-list p { margin: 8px 0; }
+.schedule-list time { display: block; color: #43516c; }
+.schedule-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 18px; }
+.schedule-confirm { margin-top: 18px; border-left: 3px solid #b74242; padding-left: 16px; }
+.schedule-confirm button { margin-right: 8px; }
+.schedule-notice { padding: 16px; border: 1px solid #a4d9ca; border-radius: 12px; background: #e6f8f1; color: #075d49; }
+@media (max-width: 1100px) { .schedule-layout { grid-template-columns: minmax(0, 1fr); } }

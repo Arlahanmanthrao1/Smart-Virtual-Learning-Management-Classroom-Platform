@@ -3,11 +3,14 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { apiFetch } from "../api/client";
 import DashboardShell, { EmptyState, Icon, StatCard } from "../components/dashboard/DashboardShell";
 import { useAuth } from "../context/AuthContext";
+import { BrandLoading } from "../branding/Brand";
 import "../styles/dashboard.css";
 
 const ATTENDANCE_RISK_THRESHOLD = 75;
 
-function QuizTaker({ quiz, onClose, onSubmitted }) {
+export const courseCategory = course => course?.course_type === "non_academic" ? "non_academic" : "academic";
+
+export function QuizTaker({ quiz, onClose, onSubmitted }) {
   const [answers, setAnswers] = useState({});
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
@@ -66,18 +69,18 @@ export default function StudentDashboard() {
   const [quizzesByCourse, setQuizzesByCourse] = useState({});
   const [materialsByCourse, setMaterialsByCourse] = useState({});
   const [submissions, setSubmissions] = useState([]);
+  const [programmingAssessments, setProgrammingAssessments] = useState([]);
   const [submitUrls, setSubmitUrls] = useState({});
-  const [activeQuiz, setActiveQuiz] = useState(null);
-  const [completedQuizzes, setCompletedQuizzes] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
 
   const loadDashboard = async () => {
     try {
-      const [enrolledCourses, everyCourse] = await Promise.all([apiFetch("/courses/enrolled"), apiFetch("/courses/")]);
+      const [enrolledCourses, everyCourse, assessments] = await Promise.all([apiFetch("/courses/enrolled"), apiFetch("/courses/"), apiFetch("/programming/assessments")]);
       setCourses(enrolledCourses);
       setAllCourses(everyCourse);
+      setProgrammingAssessments(assessments);
       const [sessions, attendance, assignments, quizzes, materials, mySubmissions] = await Promise.all([
         Promise.all(enrolledCourses.map((course) => apiFetch(`/attendance/sessions/${course.id}`).then((data) => [course.id, data]))),
         Promise.all(enrolledCourses.map((course) => apiFetch(`/attendance/${course.id}/${user.id}`).then((data) => [course.id, data]))),
@@ -137,11 +140,6 @@ export default function StudentDashboard() {
       setSubmitUrls({ ...submitUrls, [assignmentId]: "" });
     } catch (err) { setError(err.message); }
   };
-  const openQuiz = async (quiz) => {
-    try { setActiveQuiz(await apiFetch(`/quizzes/${quiz.id}`)); }
-    catch (err) { setError(err.message); }
-  };
-
   const allAssignments = Object.values(assignmentsByCourse).flat();
   const allQuizzes = Object.values(quizzesByCourse).flat();
   const attendanceRecords = Object.values(attendanceByCourse).flat();
@@ -151,9 +149,43 @@ export default function StudentDashboard() {
   const enrolledIds = new Set(courses.map((course) => course.id));
   const availableCourses = allCourses.filter((course) => !enrolledIds.has(course.id));
   const matchesSearch = (course) => `${course.name} ${course.code} ${course.department || ""}`.toLowerCase().includes(search.toLowerCase());
-  const shownCourses = useMemo(() => courses.filter(matchesSearch), [courses, search]); // eslint-disable-line react-hooks/exhaustive-deps
+  const shownCourses = useMemo(() => courses.filter(course => matchesSearch(course) &&
+    (!['syllabus', 'notes', 'study-materials'].includes(page) || courseCategory(course) === "academic")), [courses, search, page]); // eslint-disable-line react-hooks/exhaustive-deps
+  const academicCourses = courses.filter(course => courseCategory(course) === "academic");
+  const nonAcademicCourses = courses.filter(course => courseCategory(course) === "non_academic");
+  const shownAcademicCourses = academicCourses.filter(matchesSearch);
+  const shownNonAcademicCourses = nonAcademicCourses.filter(matchesSearch);
+  const availableAcademicCourses = availableCourses.filter(course => courseCategory(course) === "academic");
+  const availableNonAcademicCourses = availableCourses.filter(course => courseCategory(course) === "non_academic");
+  const activeAcademicClasses = activeClasses.filter(({ course }) => courseCategory(course) === "academic");
+  const activeNonAcademicClasses = activeClasses.filter(({ course }) => courseCategory(course) === "non_academic");
+  const courseById = new Map(courses.map((course) => [course.id, course]));
+  const assignmentById = new Map(allAssignments.map((assignment) => [assignment.id, assignment]));
+  const gradedResults = submissions.map((submission) => ({ submission, assignment: assignmentById.get(submission.assignment_id) }))
+    .filter(({ submission, assignment }) => assignment && submission.marks_obtained != null);
+  const nonAcademicGradedResults = gradedResults.filter(({ assignment }) => courseCategory(courseById.get(assignment.course_id)) === "non_academic");
+  const materialPage = ["syllabus", "notes", "study-materials"].includes(page);
+  const materialFilter = (material) => {
+    const type = (material.material_type || "").toLowerCase();
+    if (page === "syllabus") return type.includes("syllabus");
+    if (page === "notes") return type.includes("note");
+    return true;
+  };
+  const nonAcademicPages = new Set(["weekly-tests", "leaderboard"]);
+  const nonAcademicTitles = {
+    "non-academic-courses": "Non-academic courses",
+    "non-academic-assignments": "Non-academic assignments",
+    "weekly-tests": "Weekly tests",
+    "non-academic-quizzes": "Non-academic quizzes",
+    "non-academic-marks": "Non-academic marks",
+    leaderboard: "Leader Board · Top 10",
+  };
 
-  if (loading) return <div className="loading-screen"><span className="loading-mark">LMS</span><p>Preparing your dashboard…</p></div>;
+  const renderCourseCatalogue = (eyebrow, listedCourses, available, liveClasses) => <div className="content-grid"><section className="section"><p className="section-eyebrow">{eyebrow}</p><h2 className="section-title">My courses</h2>{liveClasses.map(({ course, session }) => <div className="active-class-card" key={session.id}><span className="active-class-icon"><Icon name="video" /></span><div><span className="pill pill-live">Live now</span><h3>{course.name}</h3><p>{course.code} · Attendance starts when you enter</p></div><button className="btn btn-primary" onClick={() => joinSession(course, session)}>Join now</button></div>)}{!listedCourses.length && <EmptyState>{search ? `No ${eyebrow.toLowerCase()} course matches your search.` : `You are not enrolled in an ${eyebrow.toLowerCase()} course yet.`}</EmptyState>}<div className="course-list">{listedCourses.map((course) => { const percentage = attendancePercent(course.id); const atRisk = percentage !== null && percentage < ATTENDANCE_RISK_THRESHOLD; const assignments = assignmentsByCourse[course.id] || []; const quizzes = quizzesByCourse[course.id] || []; const materials = materialsByCourse[course.id] || []; return <article className="card course-card" key={course.id}><div className="course-row"><div><span className="course-name">{course.name}</span><span className="course-code">{course.code}</span><div className="course-meta"><span>{course.department || "Department not set"}</span><span>{course.semester || "Semester not set"}</span></div></div><span className={`pill ${atRisk ? "pill-risk" : percentage === null ? "pill-muted" : "pill-ok"}`}>{percentage === null ? "No attendance yet" : `${percentage}% attendance${atRisk ? " · at risk" : ""}`}</span></div><div className="course-card-footer"><p className="footnote">{assignments.length} assignments · {quizzes.length} quizzes · {materials.length} resources</p><Link className="btn btn-primary" to={`/student/courses/${course.id}`}>Open course →</Link></div></article>; })}</div></section><aside className="content-stack"><section className="card panel-card"><div className="section-title-row"><h3>Browse {eyebrow.toLowerCase()}</h3><Icon name="courses" /></div>{!available.length && <p className="footnote">No other {eyebrow.toLowerCase()} courses are available.</p>}{available.filter(matchesSearch).map((course) => <div className="item-row split-row" key={course.id}><div><strong>{course.name}</strong><div className="footnote">{course.code}</div></div><button className="btn btn-soft" disabled={enrolling === course.id} onClick={() => enroll(course.id)}>{enrolling === course.id ? "Adding…" : "Enroll"}</button></div>)}</section></aside></div>;
+
+  const renderAssignmentCourses = (eyebrow, listedCourses) => <section className="section"><p className="section-eyebrow">{eyebrow}</p><h2 className="section-title">Course assignments</h2>{!listedCourses.length && <EmptyState>{search ? "No enrolled course matches your search." : `You are not enrolled in an ${eyebrow.toLowerCase()} course yet.`}</EmptyState>}<div className="course-list">{listedCourses.map((course) => { const assignments = assignmentsByCourse[course.id] || []; return <article className="card course-card" key={course.id}><div className="course-row"><div><span className="course-name">{course.name}</span><span className="course-code">{course.code}</span></div><Link className="btn btn-soft" to={`/student/courses/${course.id}`}>Open course</Link></div>{!assignments.length && <p className="footnote">Nothing posted yet.</p>}{assignments.map((assignment) => { const mine = submissionFor(assignment.id); return <div className="item-row" key={assignment.id}><div className="split-row"><span>{assignment.title}</span>{mine && <span className={`pill ${mine.marks_obtained != null ? "pill-ok" : "pill-muted"}`}>{mine.marks_obtained != null ? `${mine.marks_obtained}/${assignment.max_marks}` : "Awaiting grade"}</span>}</div>{!mine && <div className="inline-submit"><input className="field" type="url" placeholder="Paste your file URL" value={submitUrls[assignment.id] || ""} onChange={(event) => setSubmitUrls({ ...submitUrls, [assignment.id]: event.target.value })} /><button className="btn btn-soft" onClick={() => submitAssignment(assignment.id)}>Submit</button></div>}</div>; })}</article>; })}</div></section>;
+
+  if (loading) return <BrandLoading>Preparing your dashboard…</BrandLoading>;
 
   return (
     <DashboardShell user={user} title="Student Hub" roleLabel="Student" onLogout={logout} searchValue={search} onSearch={setSearch} searchPlaceholder="Search your courses…">
@@ -168,39 +200,33 @@ export default function StudentDashboard() {
         <StatCard icon="assignments" label="Pending assignments" value={pendingAssignments.length} tone="red" />
         <StatCard icon="quiz" label="Available quizzes" value={allQuizzes.length} tone="amber" />
       </section>}
-      {page === "dashboard" && <><div className="page-actions"><Link className="btn btn-primary" to="/student/courses">Open my courses</Link><Link className="btn btn-soft" to="/student/assignments">View assignments</Link><Link className="btn btn-soft" to="/student/quizzes">Take a quiz</Link></div><section className="section"><h2 className="section-title">Live classes</h2>{!activeClasses.length && <EmptyState>No classes are live right now.</EmptyState>}{activeClasses.map(({ course, session }) => <div className="active-class-card" key={session.id}><div><span className="pill pill-live">Live now</span><h3>{course.name}</h3></div><button className="btn btn-primary" onClick={() => joinSession(course, session)}>Join now</button></div>)}</section></>}
-      <div className={page === "courses" ? "content-grid" : "page-grid"}>
-        <div className="content-stack">
-          {page !== "dashboard" && <section className="section" id={page}>
-            <div className="section-title-row"><div><p className="section-eyebrow">Your enrolled courses</p><h2 className="section-title">{{ courses: "My courses", assignments: "Course assignments", quizzes: "Course quizzes", materials: "Course study guides" }[page]}</h2></div></div>
-            {page === "courses" && activeClasses.map(({ course, session }) => <div className="active-class-card" key={session.id}><span className="active-class-icon"><Icon name="video" /></span><div><span className="pill pill-live">Live now</span><h3>{course.name}</h3><p>{course.code} · Attendance starts when you enter</p></div><button className="btn btn-primary" onClick={() => joinSession(course, session)}>Join now</button></div>)}
-            {!shownCourses.length && <EmptyState>{search ? "No enrolled course matches your search." : "You are not enrolled in a course yet."}</EmptyState>}
-            <div className="course-list">
-              {shownCourses.map((course) => {
-                const percentage = attendancePercent(course.id);
-                const atRisk = percentage !== null && percentage < ATTENDANCE_RISK_THRESHOLD;
-                const assignments = assignmentsByCourse[course.id] || [];
-                const quizzes = quizzesByCourse[course.id] || [];
-                const materials = materialsByCourse[course.id] || [];
-                return <article className="card course-card" key={course.id}>
-                  <div className="course-row"><div><span className="course-name">{course.name}</span><span className="course-code">{course.code}</span><div className="course-meta"><span>{course.department || "Department not set"}</span><span>{course.semester || "Semester not set"}</span></div></div><span className={`pill ${atRisk ? "pill-risk" : percentage === null ? "pill-muted" : "pill-ok"}`}>{percentage === null ? "No attendance yet" : `${percentage}% attendance${atRisk ? " · at risk" : ""}`}</span></div>
-                  <div className="page-grid">
-                    {page === "assignments" && <div><p className="mini-heading">Assignments</p>{!assignments.length && <p className="footnote">Nothing posted yet.</p>}{assignments.map((assignment) => { const mine = submissionFor(assignment.id); return <div className="item-row" key={assignment.id}><div className="split-row"><span>{assignment.title}</span>{mine && <span className={`pill ${mine.marks_obtained !== null ? "pill-ok" : "pill-muted"}`}>{mine.marks_obtained !== null ? `${mine.marks_obtained}/${assignment.max_marks}` : "Awaiting grade"}</span>}</div>{!mine && <div className="inline-submit"><input className="field" type="url" placeholder="Paste your file URL" value={submitUrls[assignment.id] || ""} onChange={(event) => setSubmitUrls({ ...submitUrls, [assignment.id]: event.target.value })} /><button className="btn btn-soft" onClick={() => submitAssignment(assignment.id)}>Submit</button></div>}</div>; })}</div>}
-                    {page === "quizzes" && <div><p className="mini-heading">Quizzes</p>{!quizzes.length && <p className="footnote">Nothing posted yet.</p>}{quizzes.map((quiz) => <div className="item-row split-row" key={quiz.id}><span>{quiz.title}</span>{completedQuizzes[quiz.id] !== undefined ? <span className="pill pill-ok">{completedQuizzes[quiz.id].toFixed(0)}%</span> : <button className="btn-text" onClick={() => openQuiz(quiz)}>Take quiz →</button>}</div>)}</div>}
-                  </div>
-                  {page === "materials" && <div><p className="mini-heading">Study guide</p>{!materials.length && <p className="footnote">No materials uploaded yet.</p>}<div className="material-links">{materials.map((material) => <a key={material.id} href={material.file_url} target="_blank" rel="noreferrer"><Icon name="material" size={16} /><span>{material.title}</span><small>{material.material_type}</small></a>)}</div></div>}
-                  {page === "quizzes" && activeQuiz && quizzes.some((quiz) => quiz.id === activeQuiz.id) && <QuizTaker quiz={activeQuiz} onClose={() => setActiveQuiz(null)} onSubmitted={(quizId, score) => setCompletedQuizzes({ ...completedQuizzes, [quizId]: score })} />}
-                </article>;
-              })}
-            </div>
-          </section>}
-        </div>
-        <aside className="content-stack">
-          {page === "dashboard" && (<section className="card panel-card profile-card"><div className="profile-card-avatar">{user.name.split(" ").map((part) => part[0]).join("").slice(0, 2)}</div><h3>{user.name}</h3><p>{user.email}</p><span className="pill pill-muted">{user.department || "Department not set"}</span></section>)}
-          {page === "dashboard" && (<section className="card panel-card"><div className="section-title-row"><h3>Attendance overview</h3><Icon name="chart" /></div><div className="attendance-number">{overallAttendance === null ? "—" : `${overallAttendance}%`}</div><div className="split-row footnote"><span>Overall attendance</span><span>Target 75%</span></div><div className="progress-track"><div className={`progress-fill ${overallAttendance !== null && overallAttendance < 75 ? "risk" : ""}`} style={{ width: `${overallAttendance || 0}%` }} /></div></section>)}
-          {page === "courses" && (<section className="card panel-card"><div className="section-title-row"><h3>Browse courses</h3><Icon name="courses" /></div>{!availableCourses.length && <p className="footnote">You’re enrolled in every available course.</p>}{availableCourses.filter(matchesSearch).map((course) => <div className="item-row split-row" key={course.id}><div><strong>{course.name}</strong><div className="footnote">{course.code}</div></div><button className="btn btn-soft" disabled={enrolling === course.id} onClick={() => enroll(course.id)}>{enrolling === course.id ? "Adding…" : "Enroll"}</button></div>)}</section>)}
-        </aside>
-      </div>
+      {page === "dashboard" && <><div className="page-actions"><Link className="btn btn-primary" to="/student/academic-courses">Open my courses</Link><Link className="btn btn-soft" to="/student/academic-assignments">View assignments</Link><Link className="btn btn-soft" to="/student/study-materials">Study material</Link></div><div className="content-grid"><section className="section"><h2 className="section-title">Live classes</h2>{!activeClasses.length && <EmptyState>No classes are live right now.</EmptyState>}{activeClasses.map(({ course, session }) => <div className="active-class-card" key={session.id}><div><span className="pill pill-live">Live now</span><h3>{course.name}</h3></div><button className="btn btn-primary" onClick={() => joinSession(course, session)}>Join now</button></div>)}</section><aside className="content-stack"><section className="card panel-card profile-card"><div className="profile-card-avatar">{user.name.split(" ").map((part) => part[0]).join("").slice(0, 2)}</div><h3>{user.name}</h3><p>{user.email}</p><span className="pill pill-muted">{user.department || "Department not set"}</span></section><section className="card panel-card"><div className="section-title-row"><h3>Attendance overview</h3><Icon name="chart" /></div><div className="attendance-number">{overallAttendance === null ? "—" : `${overallAttendance}%`}</div><div className="split-row footnote"><span>Overall attendance</span><span>Target 75%</span></div><div className="progress-track"><div className={`progress-fill ${overallAttendance !== null && overallAttendance < 75 ? "risk" : ""}`} style={{ width: `${overallAttendance || 0}%` }} /></div></section></aside></div></>}
+
+      {page === "notifications" && <section className="section"><p className="section-eyebrow">Updates from your enrolled courses</p><h2 className="section-title">Notifications</h2><div className="card panel-card">{!activeClasses.length && !pendingAssignments.length && !allQuizzes.length && <EmptyState>You have no current course notifications.</EmptyState>}{activeClasses.map(({ course, session }) => <div className="item-row split-row" key={`live-${session.id}`}><div><strong>{course.name} is live</strong><div className="footnote">Join now to begin attendance tracking.</div></div><button className="btn btn-primary" onClick={() => joinSession(course, session)}>Join</button></div>)}{pendingAssignments.map((assignment) => <div className="item-row" key={`assignment-${assignment.id}`}><strong>Assignment: {assignment.title}</strong><div className="footnote">{courseById.get(assignment.course_id)?.name || "Enrolled course"}</div></div>)}{allQuizzes.map((quiz) => <div className="item-row" key={`quiz-${quiz.id}`}><strong>Quiz available: {quiz.title}</strong><div className="footnote">{courseById.get(quiz.course_id)?.name || "Enrolled course"}</div></div>)}</div></section>}
+
+      {page === "attendance" && <section className="section"><p className="section-eyebrow">Recorded class sessions</p><h2 className="section-title">Attendance</h2>{!shownCourses.length && <EmptyState>{search ? "No enrolled course matches your search." : "You are not enrolled in a course yet."}</EmptyState>}<div className="course-list">{shownCourses.map((course) => { const records = attendanceByCourse[course.id] || []; const present = records.filter((record) => record.present).length; const percentage = attendancePercent(course.id); const atRisk = percentage !== null && percentage < ATTENDANCE_RISK_THRESHOLD; return <article className="card course-card" key={course.id}><div className="course-row"><div><span className="course-name">{course.name}</span><span className="course-code">{course.code}</span></div><span className={`pill ${atRisk ? "pill-risk" : percentage === null ? "pill-muted" : "pill-ok"}`}>{percentage === null ? "No attendance yet" : `${percentage}%${atRisk ? " · at risk" : ""}`}</span></div><div className="split-row footnote"><span>{present} attended</span><span>{Math.max(records.length - present, 0)} missed · {records.length} recorded</span></div><div className="progress-track"><div className={`progress-fill ${atRisk ? "risk" : ""}`} style={{ width: `${percentage || 0}%` }} /></div></article>; })}</div></section>}
+
+      {page === "marks" && <section className="section"><p className="section-eyebrow">Published results only</p><h2 className="section-title">Marks</h2><div className="card panel-card">{!gradedResults.length && <EmptyState>No assignment marks have been published yet.</EmptyState>}{gradedResults.map(({ submission, assignment }) => <div className="item-row split-row" key={submission.id}><div><strong>{assignment.title}</strong><div className="footnote">{courseById.get(assignment.course_id)?.name || "Enrolled course"}</div></div><span className="pill pill-ok">{submission.marks_obtained}/{assignment.max_marks}</span></div>)}</div></section>}
+
+      {page === "academic-courses" && renderCourseCatalogue("Academics", shownAcademicCourses, availableAcademicCourses, activeAcademicClasses)}
+
+      {page === "academic-assignments" && renderAssignmentCourses("Academics", shownAcademicCourses)}
+
+      {page === "non-academic-courses" && renderCourseCatalogue("Non Academics", shownNonAcademicCourses, availableNonAcademicCourses, activeNonAcademicClasses)}
+
+      {page === "non-academic-assignments" && renderAssignmentCourses("Non Academics", shownNonAcademicCourses)}
+
+      {page === "non-academic-quizzes" && <section className="section"><p className="section-eyebrow">Non Academics</p><h2 className="section-title">Course quizzes</h2>{!shownNonAcademicCourses.length && <EmptyState>No non-academic courses match your search.</EmptyState>}<div className="course-list">{shownNonAcademicCourses.map(course => <article className="card course-card" key={course.id}><div className="course-row"><div><span className="course-name">{course.name}</span><span className="course-code">{course.code}</span></div><Link className="btn btn-primary" to={`/student/courses/${course.id}`}>Open quizzes →</Link></div><p className="footnote">{(quizzesByCourse[course.id] || []).length} quiz{(quizzesByCourse[course.id] || []).length === 1 ? "" : "zes"} available</p></article>)}</div></section>}
+
+      {page === "non-academic-marks" && <section className="section"><p className="section-eyebrow">Non Academics</p><h2 className="section-title">Published marks</h2><div className="card panel-card">{!nonAcademicGradedResults.length && <EmptyState>No non-academic marks have been published yet.</EmptyState>}{nonAcademicGradedResults.map(({ submission, assignment }) => <div className="item-row split-row" key={submission.id}><div><strong>{assignment.title}</strong><div className="footnote">{courseById.get(assignment.course_id)?.name}</div></div><span className="pill pill-ok">{submission.marks_obtained}/{assignment.max_marks}</span></div>)}</div></section>}
+
+      {page === "programming-assessments" && <section className="section"><p className="section-eyebrow">Non Academics</p><h2 className="section-title">Programming Assessments</h2><p className="section-description">Write and run code, then submit it against the assessment test cases.</p>{!programmingAssessments.length && <EmptyState>No programming assessments have been published for your enrolled courses.</EmptyState>}<div className="course-list">{programmingAssessments.map(assessment => <article className="card course-card" key={assessment.id}><div className="course-row"><div><span className="course-name">{assessment.title}</span><span className="course-code">{assessment.course_code}</span><div className="course-meta"><span>{assessment.course_name}</span><span>{assessment.test_count} test case{assessment.test_count === 1 ? "" : "s"}</span><span>{assessment.allowed_languages.join(", ")}</span></div></div><Link className="btn btn-primary" to={`/student/programming-assessments/${assessment.id}`}>Open compiler →</Link></div>{assessment.description && <p>{assessment.description}</p>}</article>)}</div></section>}
+
+      {materialPage && <section className="section"><p className="section-eyebrow">Academics</p><h2 className="section-title">{{ syllabus: "Syllabus", notes: "Notes", "study-materials": "Study Material" }[page]}</h2>{!shownCourses.length && <EmptyState>{search ? "No enrolled course matches your search." : "You are not enrolled in a course yet."}</EmptyState>}<div className="course-list">{shownCourses.map((course) => { const materials = (materialsByCourse[course.id] || []).filter(materialFilter); return <article className="card course-card" key={course.id}><div className="course-row"><div><span className="course-name">{course.name}</span><span className="course-code">{course.code}</span></div></div>{!materials.length && <p className="footnote">No {page === "study-materials" ? "study material" : page} uploaded for this course yet.</p>}<div className="material-links">{materials.map((material) => <a key={material.id} href={material.file_url} target="_blank" rel="noreferrer"><Icon name="material" size={16} /><span>{material.title}</span><small>{material.material_type}</small></a>)}</div></article>; })}</div></section>}
+
+      {nonAcademicPages.has(page) && <section className="section"><p className="section-eyebrow">Non Academics</p><h2 className="section-title">{nonAcademicTitles[page]}</h2><div className="card panel-card"><EmptyState>No {nonAcademicTitles[page].toLowerCase()} have been configured for your institution yet.</EmptyState></div></section>}
+
+      {page === "ai-assistant" && <section className="section"><p className="section-eyebrow">AI Assistant</p><h2 className="section-title">Learning assistant</h2><div className="card panel-card"><EmptyState>The AI Assistant is not connected in the current build. When an approved AI service is configured, this page will provide course-aware assistance.</EmptyState></div></section>}
     </DashboardShell>
   );
 }

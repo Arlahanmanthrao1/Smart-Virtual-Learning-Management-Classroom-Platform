@@ -101,6 +101,10 @@ def main():
             print("Cancelled. No account was created.")
             return 1
         with psycopg.connect(url, sslmode="require", connect_timeout=15) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT to_regclass(\'public.institutions\')")
+                if cursor.fetchone()[0] is not None:
+                    raise ValueError("This database uses institution onboarding. Register a new institution through the application; existing institutions must use their administrator account.")
             create_first_admin(connection, name, email, password)
         print(f"Administrator created. Sign in as {email} using your chosen password.")
         print("https://smart-virtual-lms-frontend-ruby.vercel.app/login")

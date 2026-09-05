@@ -11,6 +11,7 @@ venv/
 node_modules/
 dist/
 .jaas-build-check/
+frontend/.*-build-check*/
 __pycache__/
 *.pyc
 .vercel/

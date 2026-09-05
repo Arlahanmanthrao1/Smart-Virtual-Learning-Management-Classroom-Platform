@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, useLocation, useParams } from "react-router-dom";
-import { dashboardNavigation, dashboardPath } from "./navigation";
+import { dashboardNavigation, dashboardPath, studentPortalSections, studentSectionForPage } from "./navigation";
+import { BrandLogo, pageTitle } from "../../branding/Brand";
 
 const paths = {
+  calendar: <><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18M8 15h2M14 15h2"/></>,
   dashboard: <><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></>,
   courses: <><path d="m3 10 9-5 9 5-9 5-9-5Z"/><path d="M7 12.5V17l5 3 5-3v-4.5"/></>,
   assignments: <><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4.5V3h6v1.5M9 9h6M9 13h6M9 17h4"/></>,
@@ -18,6 +20,8 @@ const paths = {
   department: <><path d="M3 21h18M6 21V9h12v12M9 13h2m2 0h2m-6 4h2m2 0h2M8 9V5h8v4"/></>,
   check: <><circle cx="12" cy="12" r="10"/><path d="m8 12 3 3 5-6"/></>,
   clock: <><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></>,
+  chevron: <path d="m15 18-6-6 6-6"/>,
+  code: <><path d="m8 9-4 3 4 3M16 9l4 3-4 3M14 5l-4 14"/></>,
 };
 
 export function Icon({ name, size = 20 }) {
@@ -43,44 +47,74 @@ export function EmptyState({ children }) {
   return <div className="empty-state">{children}</div>;
 }
 
-export default function DashboardShell({ user, title, roleLabel, onLogout, searchPlaceholder, searchValue, onSearch, children }) {
+export default function DashboardShell({ user, title, roleLabel, onLogout, searchPlaceholder, searchValue, onSearch, activePage, children }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const { page = "dashboard" } = useParams();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [compactLayout, setCompactLayout] = useState(false);
+  const [institutionLogoFailed, setInstitutionLogoFailed] = useState(false);
+  const routeParams = useParams();
+  const page = activePage || routeParams.page || "dashboard";
   const { pathname } = useLocation();
   const mainRef = useRef(null);
-  const navItems = dashboardNavigation[user.role];
-  const currentPage = navItems.find((item) => item.id === page);
+  const allNavItems = dashboardNavigation[user.role];
+  const studentSection = user.role === "student" ? studentSectionForPage(page) : null;
+  const navItems = studentSection?.items || allNavItems;
+  const currentPage = allNavItems.find((item) => item.id === page);
   const initials = user.name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase();
+  const institutionName = user.institution?.name || title;
+  const institutionInitials = institutionName.split(/\s+/).filter(Boolean).map(part => part[0]).join("").slice(0, 2).toUpperCase();
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 820px)");
+    const updateLayout = () => {
+      setCompactLayout(media.matches);
+      if (!media.matches) setMobileNavOpen(false);
+    };
+    updateLayout();
+    media.addEventListener?.("change", updateLayout);
+    return () => media.removeEventListener?.("change", updateLayout);
+  }, []);
+
+  useEffect(() => setInstitutionLogoFailed(false), [user.institution?.logo_url]);
 
   useEffect(() => {
     setMobileNavOpen(false);
     onSearch?.("");
     window.scrollTo({ top: 0, behavior: "instant" });
     mainRef.current?.focus({ preventScroll: true });
-    document.title = `${currentPage?.label || "Dashboard"} · ${title}`;
-  }, [pathname, currentPage?.label, title, onSearch]);
+    document.title = pageTitle(currentPage?.label || "Dashboard", user.institution?.name || title);
+  }, [pathname, currentPage?.label, title, user.institution?.name, onSearch]);
+
+  const sidebarOpen = compactLayout ? mobileNavOpen : !sidebarCollapsed;
+  const toggleSidebar = () => {
+    if (compactLayout) setMobileNavOpen(open => !open);
+    else setSidebarCollapsed(collapsed => !collapsed);
+  };
 
   return (
-    <div className="portal-shell">
-      <aside className={`portal-sidebar ${mobileNavOpen ? "sidebar-open" : ""}`}>
+    <div className={`portal-shell ${!compactLayout && sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
+      <aside id="portal-navigation" className={`portal-sidebar ${mobileNavOpen ? "sidebar-open" : ""}`}>
+        <div className="sidebar-header"><Link className="platform-home sidebar-platform" to={dashboardPath(user.role)}><BrandLogo /></Link><button className="sidebar-collapse-toggle" type="button" onClick={toggleSidebar} aria-label={`${sidebarOpen ? "Close" : "Open"} left menu`} aria-controls="portal-navigation" aria-expanded={sidebarOpen}><Icon name="chevron" /></button></div>
         <div className="profile-block">
           <div className="avatar">{initials}</div>
           <div><strong>{user.name}</strong><span>{user.department || roleLabel}</span></div>
         </div>
+        {studentSection && <div className="sidebar-context-title"><span>{studentSection.label}</span></div>}
         <nav className="portal-nav" aria-label="Dashboard sections">
           {navItems.map((item) => (
-            <NavLink key={item.id} to={dashboardPath(user.role, item.id)} end onClick={() => setMobileNavOpen(false)}>
+            <NavLink key={item.id} to={dashboardPath(user.role, item.id)} end onClick={() => setMobileNavOpen(false)} title={sidebarOpen ? undefined : item.label}>
               <Icon name={item.icon} /><span>{item.label}</span>
             </NavLink>
           ))}
         </nav>
-        <button className="sidebar-logout" onClick={onLogout}><Icon name="logout" /> Sign out</button>
+        <button className="sidebar-logout" onClick={onLogout} title={sidebarOpen ? undefined : "Sign out"}><Icon name="logout" /><span>Sign out</span></button>
       </aside>
+      {compactLayout && mobileNavOpen && <button className="sidebar-backdrop" type="button" onClick={() => setMobileNavOpen(false)} aria-label="Close left menu" />}
 
       <div className="portal-main">
-        <header className="portal-topbar">
-          <button className="mobile-menu" onClick={() => setMobileNavOpen(!mobileNavOpen)} aria-label="Toggle navigation" aria-expanded={mobileNavOpen}>☰</button>
-          <Link className="portal-brand" to={dashboardPath(user.role)}><span className="brand-mark"><Icon name="courses" size={22} /></span>{title}</Link>
+        <header className={`portal-topbar ${user.role === "student" ? "student-portal-topbar" : ""}`}>
+          <Link className="portal-brand" to={dashboardPath(user.role)}>{user.institution?.logo_url && !institutionLogoFailed ? <img className="institution-brand-logo" src={user.institution.logo_url} alt={`${institutionName} logo`} referrerPolicy="no-referrer" onError={() => setInstitutionLogoFailed(true)} /> : <span className="institution-fallback-logo" aria-hidden="true">{institutionInitials || "IN"}</span>}<span className="institution-heading"><strong>{institutionName}</strong><small>{roleLabel}</small></span></Link>
+          {user.role === "student" && <nav className="student-top-nav" aria-label="Student portal areas">{studentPortalSections.map(section => <Link key={section.id} to={dashboardPath("student", section.entry)} className={studentSection?.id === section.id ? "active" : ""} aria-current={studentSection?.id === section.id ? "location" : undefined}>{section.label}</Link>)}</nav>}
           {onSearch && (
             <label className="search-box">
               <Icon name="search" size={18} />

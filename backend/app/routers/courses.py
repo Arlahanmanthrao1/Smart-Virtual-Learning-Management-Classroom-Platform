@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 from app.database import get_db
 from app.models.course import Course, Enrollment
@@ -7,6 +8,8 @@ from app.models.user import User, UserRole
 from app.schemas.course import CourseCreate, CourseOut, EnrollmentOut
 from app.schemas.user import UserOut
 from app.core.deps import get_current_user, require_roles
+
+from app.core.access import course_access, courses_query, department_name, tenant
 
 router = APIRouter(prefix="/courses", tags=["courses"])
 
@@ -17,20 +20,28 @@ def create_course(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.faculty, UserRole.admin)),
 ):
-    existing = db.query(Course).filter(Course.code == course_in.code).first()
+    existing = db.query(Course).filter(Course.code == course_in.code, Course.institution_id == tenant(current_user)).first()
     if existing:
         raise HTTPException(status_code=400, detail="Course code already exists")
 
-    course = Course(**course_in.model_dump(), faculty_id=current_user.id)
+    values = course_in.model_dump()
+    values["department"] = department_name(db, current_user, course_in.department)
+    if current_user.role == UserRole.faculty and values["department"] != current_user.department:
+        raise HTTPException(403, "Create courses only in your assigned department")
+    course = Course(**values, faculty_id=current_user.id, institution_id=tenant(current_user))
     db.add(course)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(409, "Course code already exists in your institution") from None
     db.refresh(course)
     return course
 
 
 @router.get("/", response_model=list[CourseOut])
 def list_courses(db: Session = Depends(get_db), _=Depends(get_current_user)):
-    return db.query(Course).all()
+    return courses_query(db, _, catalog=True).all()
 
 
 @router.get("/enrolled", response_model=list[CourseOut])
@@ -43,17 +54,14 @@ def list_my_enrolled_courses(
     return (
         db.query(Course)
         .join(Enrollment)
-        .filter(Enrollment.student_id == current_user.id)
+        .filter(Enrollment.student_id == current_user.id, Course.institution_id == tenant(current_user))
         .all()
     )
 
 
 @router.get("/{course_id}", response_model=CourseOut)
 def get_course(course_id: int, db: Session = Depends(get_db), _=Depends(get_current_user)):
-    course = db.query(Course).filter(Course.id == course_id).first()
-    if not course:
-        raise HTTPException(status_code=404, detail="Course not found")
-    return course
+    return course_access(db, _, course_id, catalog=True)
 
 
 @router.post("/{course_id}/enroll", response_model=EnrollmentOut, status_code=201)
@@ -62,9 +70,7 @@ def enroll(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.student)),
 ):
-    course = db.query(Course).filter(Course.id == course_id).first()
-    if not course:
-        raise HTTPException(status_code=404, detail="Course not found")
+    course_access(db, current_user, course_id, catalog=True)
 
     existing = (
         db.query(Enrollment)
@@ -82,12 +88,7 @@ def enroll(
 
 
 def _require_owned_course(course_id: int, current_user: User, db: Session) -> Course:
-    course = db.query(Course).filter(Course.id == course_id).first()
-    if not course:
-        raise HTTPException(status_code=404, detail="Course not found")
-    if course.faculty_id != current_user.id:
-        raise HTTPException(status_code=403, detail="You can only manage students in your own courses")
-    return course
+    return course_access(db, current_user, course_id, manage=True)
 
 
 @router.get("/{course_id}/students", response_model=list[UserOut])
@@ -100,7 +101,7 @@ def list_course_students(
     return (
         db.query(User)
         .join(Enrollment, Enrollment.student_id == User.id)
-        .filter(Enrollment.course_id == course_id)
+        .filter(Enrollment.course_id == course_id, User.institution_id == tenant(current_user))
         .distinct()
         .order_by(User.name, User.id)
         .all()

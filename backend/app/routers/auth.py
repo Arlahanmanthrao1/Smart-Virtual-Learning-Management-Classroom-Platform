@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -7,9 +7,15 @@ from sqlalchemy.exc import IntegrityError
 from app.database import get_db
 from app.models.user import User, UserRole
 from app.schemas.user import UserCreate, UserOut
-from app.schemas.auth import Token
+from app.schemas.auth import Token, GoogleLogin
+from app.config import settings
+from app.models.google_identity import GoogleIdentity
+from app.core.google_login import google_browser_context, verify_google_credential
 from app.core.security import hash_password, verify_password, create_access_token
 from app.core.deps import get_current_user, require_roles
+
+from app.core.access import tenant, department_name
+from app.core.institution_domains import request_login_host, institution_for_host
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -21,7 +27,7 @@ def register(
     _admin: User = Depends(require_roles(UserRole.admin)),
 ):
     """Administrator-only student creation using the approved college domain."""
-    return _create_account(user_in, UserRole.student, db)
+    return _create_account(user_in, UserRole.student, db, _admin)
 
 
 @router.post("/register-faculty", response_model=UserOut, status_code=status.HTTP_201_CREATED)
@@ -31,10 +37,20 @@ def register_faculty(
     _admin: User = Depends(require_roles(UserRole.admin)),
 ):
     """Administrator-only faculty creation; the caller cannot choose privileges."""
-    return _create_account(user_in, UserRole.faculty, db)
+    return _create_account(user_in, UserRole.faculty, db, _admin)
 
 
-def _create_account(user_in: UserCreate, role: UserRole, db: Session):
+@router.post("/register-hod", response_model=UserOut, status_code=201)
+def register_hod(user_in: UserCreate, db: Session = Depends(get_db),
+                 admin: User = Depends(require_roles(UserRole.admin))):
+    return _create_account(user_in, UserRole.hod, db, admin)
+
+
+def _create_account(user_in: UserCreate, role: UserRole, db: Session, admin: User):
+    institution_id = tenant(admin)
+    if user_in.email.split("@")[-1] != admin.institution.email_domain:
+        raise HTTPException(422, f"Email must belong to the {admin.institution.email_domain} domain")
+    department = department_name(db, admin, user_in.department)
     existing = db.query(User).filter(func.lower(User.email) == user_in.email).first()
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -44,7 +60,8 @@ def _create_account(user_in: UserCreate, role: UserRole, db: Session):
         email=user_in.email,
         hashed_password=hash_password(user_in.password),
         role=role,
-        department=user_in.department,
+        department=department,
+        institution_id=institution_id,
     )
     db.add(user)
     try:
@@ -57,14 +74,65 @@ def _create_account(user_in: UserCreate, role: UserRole, db: Session):
 
 
 @router.post("/login", response_model=Token)
-def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     # OAuth2PasswordRequestForm uses "username" as the field name; we treat it as email.
-    user = db.query(User).filter(func.lower(User.email) == form_data.username.strip().lower()).first()
+    host = request_login_host(request)
+    query = db.query(User).filter(func.lower(User.email) == form_data.username.strip().lower())
+    if host:
+        query = query.filter(User.institution_id == institution_for_host(host, db).id)
+    user = query.first()
     if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Incorrect email or password")
 
-    token = create_access_token(data={"sub": str(user.id), "role": user.role.value})
+    return login_token(user, host)
+
+
+def login_token(user: User, host: str | None):
+    tenant(user)
+    claims = {"sub": str(user.id), "role": user.role.value}
+    if host:
+        claims["login_host"] = host
+    token = create_access_token(data=claims)
     return Token(access_token=token)
+
+
+@router.get("/google/config")
+def google_config(request: Request, response: Response, db: Session = Depends(get_db)):
+    host = request_login_host(request)
+    if host:
+        institution_for_host(host, db)
+    response.headers["Cache-Control"] = "no-store"
+    return {"client_id": settings.google_client_id or None}
+
+
+@router.post("/google", response_model=Token)
+def google_login(payload: GoogleLogin, request: Request, response: Response, db: Session = Depends(get_db)):
+    host = google_browser_context(request)
+    profile = verify_google_credential(payload.credential, payload.nonce)
+    institution = institution_for_host(host, db) if host else None
+    link = db.get(GoogleIdentity, profile["subject"])
+    user = db.get(User, link.user_id) if link else db.query(User).filter(func.lower(User.email) == profile["email"]).first()
+    # First-time linking requires Google's authoritative Workspace email to match
+    # an existing administrator-provisioned account. Never auto-create a user.
+    if (not user or not user.institution or user.email.lower() != profile["email"]
+            or user.institution.email_domain != profile["domain"]
+            or (institution and user.institution_id != institution.id)):
+        raise HTTPException(403, "No matching college account is available here. Contact your institution administrator.")
+    tenant(user)
+    if not link:
+        if db.query(GoogleIdentity).filter(GoogleIdentity.user_id == user.id).first():
+            raise HTTPException(403, "This college account is linked to a different Google identity. Contact your administrator.")
+        db.add(GoogleIdentity(subject=profile["subject"], user_id=user.id))
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            # Concurrent login may have linked the same verified identity.
+            link = db.get(GoogleIdentity, profile["subject"])
+            if not link or link.user_id != user.id:
+                raise HTTPException(403, "Google account linking could not be completed. Contact your administrator.") from None
+    response.headers["Cache-Control"] = "no-store"
+    return login_token(user, host)
 
 
 @router.get("/me", response_model=UserOut)

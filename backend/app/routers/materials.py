@@ -7,6 +7,8 @@ from app.models.user import User, UserRole
 from app.schemas.material import MaterialCreate, MaterialOut
 from app.core.deps import get_current_user, require_roles
 
+from app.core.access import course_access
+
 router = APIRouter(prefix="/materials", tags=["materials"])
 
 
@@ -19,6 +21,7 @@ def upload_material(
     """Admin uploads exams, notes, or previous-year questions. file_url
     expects a pre-uploaded file link (e.g. from S3) - see the note on
     file uploads in the backend README."""
+    course_access(db, current_user, material_in.course_id, manage=True)
     material = StudyMaterial(**material_in.model_dump(), uploaded_by=current_user.id)
     db.add(material)
     db.commit()
@@ -29,6 +32,7 @@ def upload_material(
 @router.get("/course/{course_id}", response_model=list[MaterialOut])
 def list_materials(course_id: int, db: Session = Depends(get_db), _=Depends(get_current_user)):
     """Powers the study-guide view on the student dashboard."""
+    course_access(db, _, course_id)
     return (
         db.query(StudyMaterial)
         .filter(StudyMaterial.course_id == course_id)

@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { apiFetch } from "../api/client";
 import DashboardShell, { EmptyState, Icon, StatCard } from "../components/dashboard/DashboardShell";
 import { useAuth } from "../context/AuthContext";
+import { BrandLoading } from "../branding/Brand";
 import "../styles/dashboard.css";
 
 export default function HodDashboard() {
@@ -20,8 +21,8 @@ export default function HodDashboard() {
       try {
         const [allUsers, allCourses] = await Promise.all([apiFetch("/users/"), apiFetch("/courses/")]);
         const department = (user.department || "").toLowerCase();
-        const departmentUsers = department ? allUsers.filter((entry) => (entry.department || "").toLowerCase() === department) : allUsers;
-        const departmentCourses = department ? allCourses.filter((course) => (course.department || "").toLowerCase() === department) : allCourses;
+        const departmentUsers = department ? allUsers.filter((entry) => (entry.department || "").toLowerCase() === department) : [];
+        const departmentCourses = department ? allCourses.filter((course) => (course.department || "").toLowerCase() === department) : [];
         const students = departmentUsers.filter((entry) => entry.role === "student");
         const attendanceEntries = await Promise.all(students.map((student) => apiFetch(`/attendance/summary/${student.id}`).then((summary) => [student.id, summary])));
         setUsers(departmentUsers);
@@ -46,11 +47,12 @@ export default function HodDashboard() {
   const filteredAtRisk = useMemo(() => atRisk.filter((student) => `${student.name} ${student.email}`.toLowerCase().includes(search.toLowerCase())), [atRisk, search]);
   const filteredCourses = useMemo(() => courses.filter((course) => `${course.name} ${course.code}`.toLowerCase().includes(search.toLowerCase())), [courses, search]);
 
-  if (loading) return <div className="loading-screen"><span className="loading-mark">LMS</span><p>Preparing the department overview…</p></div>;
+  if (loading) return <BrandLoading>Preparing the department overview…</BrandLoading>;
 
   return (
-    <DashboardShell user={user} title="Academic Admin Portal" roleLabel="HOD Dashboard" onLogout={logout} searchValue={search} onSearch={setSearch} searchPlaceholder="Search students and courses…">
+    <DashboardShell user={user} title="Department portal" roleLabel="HOD Dashboard" onLogout={logout} searchValue={search} onSearch={setSearch} searchPlaceholder="Search students and courses…">
       {page === "dashboard" && (<section className="page-hero" id="dashboard"><div><h1>Good day, {user.name}! <span className="wave">👋</span></h1><p>Here is your {user.department || "department"} academic overview.</p></div><span className="sync-badge"><Icon name="check" size={15} /> Loaded from LMS</span></section>)}
+      {!user.department && <p className="error-banner">No department is assigned. Ask your administrator to update your account.</p>}
       {error && <p className="error-banner">{error}</p>}
       {page === "dashboard" && <section className="stats-grid stats-five">
         <StatCard icon="users" label="Total students" value={students.length} tone="blue" />

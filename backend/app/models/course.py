@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, func
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, UniqueConstraint, func
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -6,12 +6,15 @@ from app.database import Base
 
 class Course(Base):
     __tablename__ = "courses"
+    __table_args__ = (UniqueConstraint("institution_id", "code", name="uq_courses_institution_code"),)
 
     id = Column(Integer, primary_key=True, index=True)
+    institution_id = Column(Integer, ForeignKey("institutions.id"), nullable=True, index=True)
     name = Column(String, nullable=False)
-    code = Column(String, unique=True, nullable=False)
+    code = Column(String, nullable=False)
     department = Column(String, nullable=True)
     semester = Column(String, nullable=True)
+    course_type = Column(String, nullable=False, default="academic", server_default="academic")
     faculty_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 

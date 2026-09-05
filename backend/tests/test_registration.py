@@ -12,6 +12,7 @@ import app.models
 from app.config import settings
 from app.database import Base, get_db
 from app.models.user import User, UserRole
+from app.models.institution import Institution, Department
 from app.core.security import verify_password, create_access_token
 from app.routers.auth import router
 from app.routers.courses import router as courses_router
@@ -25,12 +26,16 @@ class RegistrationTest(unittest.TestCase):
         self.engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
         Base.metadata.create_all(self.engine)
         self.db = sessionmaker(bind=self.engine)()
+        self.db.add(Institution(id=1, name="Isolated test institution", email_domain="college.edu"))
+        self.db.flush()
+        self.db.add(Department(institution_id=1, name="CS"))
+        self.db.commit()
         api = FastAPI()
         api.include_router(router)
         api.include_router(courses_router)
         api.dependency_overrides[get_db] = lambda: self.db
         self.client = TestClient(api)
-        self.db.add(User(id=100, name="Test Admin", email="admin@college.edu", hashed_password="unused", role=UserRole.admin))
+        self.db.add(User(institution_id=1, id=100, name="Test Admin", email="admin@college.edu", hashed_password="unused", role=UserRole.admin))
         self.db.commit()
         self.client.headers["Authorization"] = "Bearer " + create_access_token({"sub": "100"})
         p = patch.object(settings, "allowed_email_domain", "college.edu")
@@ -86,7 +91,9 @@ class RegistrationTest(unittest.TestCase):
         self.assertEqual(me.json()["role"], "faculty")
 
     def test_hitam_domain_policy(self):
-        with patch.object(settings, "allowed_email_domain", "hitam.org"):
+        self.db.get(Institution, 1).email_domain = "hitam.org"
+        self.db.commit()
+        with patch.object(settings, "allowed_email_domain", "unused.example"):
             accepted = self.client.post(self.endpoint, json={**self.payload, "email": "test@HITAM.ORG"})
             self.assertEqual(accepted.status_code, 201, accepted.text)
             self.assertEqual(accepted.json()["email"], "test@hitam.org")
@@ -97,7 +104,7 @@ class RegistrationTest(unittest.TestCase):
         response = self.client.post(self.endpoint, json=self.payload, headers={"Authorization": ""})
         self.assertEqual(response.status_code, 401)
         for ident, role in [(101, UserRole.student), (102, UserRole.faculty), (103, UserRole.hod)]:
-            self.db.add(User(id=ident, name="Denied User", email=f"denied{ident}@college.edu", hashed_password="unused", role=role))
+            self.db.add(User(institution_id=1, id=ident, name="Denied User", email=f"denied{ident}@college.edu", hashed_password="unused", role=role))
             self.db.commit()
             token = create_access_token({"sub": str(ident)})
             response = self.client.post(self.endpoint, json=self.payload, headers={"Authorization": "Bearer " + token})
@@ -125,6 +132,7 @@ class FacultyRegistrationTest(RegistrationTest):
         course = self.client.post("/courses/", headers=headers, json={"name": "Test Course", "code": "TEST101", "department": "CS"})
         self.assertEqual(course.status_code, 201, course.text)
         self.assertEqual(course.json()["faculty_id"], created.json()["id"])
+        self.assertEqual(course.json()["course_type"], "academic")
 
 
 if __name__ == "__main__":

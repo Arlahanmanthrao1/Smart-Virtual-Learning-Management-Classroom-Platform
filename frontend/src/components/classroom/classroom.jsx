@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { postAttendanceEvent } from "../../api/attendanceApi";
 import { apiFetch } from "../../api/client";
+import brand from "../../branding/brand.json";
 
 const scriptPromises = new Map();
 
@@ -122,9 +123,9 @@ export default function Classroom({ roomId, courseId, studentId, studentName, se
             buttonsWithNotifyClick: [{ key: "hangup", preventExecution: false }],
           },
           interfaceConfigOverwrite: {
-            APP_NAME: "LMS Platform",
-            NATIVE_APP_NAME: "LMS Platform",
-            PROVIDER_NAME: "LMS Platform",
+            APP_NAME: brand.name,
+            NATIVE_APP_NAME: brand.name,
+            PROVIDER_NAME: brand.name,
             SHOW_JITSI_WATERMARK: false,
             SHOW_WATERMARK_FOR_GUESTS: false,
             SHOW_BRAND_WATERMARK: false,

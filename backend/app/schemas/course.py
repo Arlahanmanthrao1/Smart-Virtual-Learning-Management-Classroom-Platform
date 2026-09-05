@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict
 
 
@@ -6,6 +8,7 @@ class CourseCreate(BaseModel):
     code: str
     department: str | None = None
     semester: str | None = None
+    course_type: Literal["academic", "non_academic"] = "academic"
 
 
 class CourseOut(BaseModel):
@@ -16,6 +19,7 @@ class CourseOut(BaseModel):
     code: str
     department: str | None = None
     semester: str | None = None
+    course_type: Literal["academic", "non_academic"]
     faculty_id: int | None = None
 
 

@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, field_validator
+import re
 from typing import Literal
 
 
@@ -26,10 +27,28 @@ class Settings(BaseSettings):
     # Only emails on this domain can register - the "secure college
     # authentication" feature from the spec.
     allowed_email_domain: str = "hitam.org"
+    # Public Google OAuth Web client ID. Empty keeps Google sign-in disabled.
+    google_client_id: str = ""
+    code_runner_url: str = "https://ce.judge0.com"
+    code_runner_api_key: SecretStr = SecretStr("")
+    code_runner_timeout_ms: int = Field(default=3000, ge=500, le=10000)
 
     # Where the (dummy) college ERP is running, for pushing attendance sync calls.
     erp_base_url: str = ""
+    erp_institution_id: int | None = None
     allowed_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+    # Operator-approved host -> institution email domain. Registration never enables DNS.
+    institution_login_hosts: dict[str, str] = Field(default_factory=dict)
+
+    @field_validator("institution_login_hosts")
+    @classmethod
+    def validate_login_hosts(cls, hosts):
+        label = r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
+        for host, domain in hosts.items():
+            if (len(host) > 253 or not re.fullmatch(rf"{label}(?:\.{label})+", domain)
+                    or host != f"ekeekrta.{domain}"):
+                raise ValueError("Institution hosts must be lowercase ekeekrta.<institution-domain>, without a scheme, port or path")
+        return hosts
 
     class Config:
         env_file = ".env"

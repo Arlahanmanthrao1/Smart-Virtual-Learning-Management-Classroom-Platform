@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { apiFetch } from "../api/client";
 import DashboardShell, { EmptyState, Icon, StatCard } from "../components/dashboard/DashboardShell";
 import { useAuth } from "../context/AuthContext";
-import CourseEnrollmentPanel from "../components/dashboard/CourseEnrollmentPanel";
+import { BrandLoading } from "../branding/Brand";
 import "../styles/dashboard.css";
 
-function CreateAssignmentForm({ courses, onCreated }) {
-  const [form, setForm] = useState({ course_id: "", title: "", description: "", max_marks: 100 });
+export function CreateAssignmentForm({ courses, fixedCourse, onCreated }) {
+  const [form, setForm] = useState({ course_id: fixedCourse?.id || "", title: "", description: "", max_marks: 100, due_date: "" });
   const [error, setError] = useState("");
 
   const submit = async (e) => {
@@ -16,9 +16,9 @@ function CreateAssignmentForm({ courses, onCreated }) {
     try {
       await apiFetch("/assignments/", {
         method: "POST",
-        body: JSON.stringify({ ...form, course_id: Number(form.course_id), max_marks: Number(form.max_marks) }),
+        body: JSON.stringify({ ...form, course_id: Number(form.course_id), max_marks: Number(form.max_marks), due_date: form.due_date ? new Date(form.due_date).toISOString() : null }),
       });
-      setForm({ course_id: "", title: "", description: "", max_marks: 100 });
+      setForm({ course_id: fixedCourse?.id || "", title: "", description: "", max_marks: 100, due_date: "" });
       onCreated();
     } catch (err) {
       setError(err.message);
@@ -28,12 +28,17 @@ function CreateAssignmentForm({ courses, onCreated }) {
   return (
     <form onSubmit={submit} className="card">
       <div className="form-row">
-        <select className="field" value={form.course_id} onChange={(e) => setForm({ ...form, course_id: e.target.value })} required>
+        {fixedCourse ? <p className="fixed-course-label"><span>Posting to</span><strong>{fixedCourse.code} · {fixedCourse.name}</strong></p> : <select className="field" value={form.course_id} onChange={(e) => setForm({ ...form, course_id: e.target.value })} required>
           <option value="">Course</option>
           {courses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
+        </select>}
         <input className="field" placeholder="Title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required style={{ flex: 1, minWidth: 160 }} />
+        <textarea className="field" placeholder="Instructions or notes (optional)" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} style={{ flexBasis: "100%" }} />
         <input className="field" placeholder="Max marks" type="number" value={form.max_marks} onChange={(e) => setForm({ ...form, max_marks: e.target.value })} style={{ width: 100 }} />
+        <label className="field-label">Due date and time (optional)
+          <input className="field" type="datetime-local" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} />
+          <small>Your local time. Dated assignments appear in the calendar.</small>
+        </label>
         <button type="submit" className="btn btn-primary">Post assignment</button>
       </div>
       {error && <p className="error-banner" style={{ marginTop: 12, marginBottom: 0 }}>{error}</p>}
@@ -41,8 +46,18 @@ function CreateAssignmentForm({ courses, onCreated }) {
   );
 }
 
-function CreateQuizForm({ courses, onCreated }) {
-  const [courseId, setCourseId] = useState("");
+export function CourseTypeField({ value, onChange }) {
+  return <label className="field-label">Course type
+    <select className="field" value={value} onChange={onChange} required>
+      <option value="academic">Academic</option>
+      <option value="non_academic">Non-Academic</option>
+    </select>
+    <small>This decides where students find the course in their portal.</small>
+  </label>;
+}
+
+export function CreateQuizForm({ courses, fixedCourse, onCreated }) {
+  const [courseId, setCourseId] = useState(fixedCourse?.id || "");
   const [title, setTitle] = useState("");
   const [questions, setQuestions] = useState([{ text: "", options: ["", ""], correct_option: 0 }]);
   const [error, setError] = useState("");
@@ -69,7 +84,7 @@ function CreateQuizForm({ courses, onCreated }) {
         method: "POST",
         body: JSON.stringify({ course_id: Number(courseId), title, total_marks: 100, questions }),
       });
-      setCourseId("");
+      setCourseId(fixedCourse?.id || "");
       setTitle("");
       setQuestions([{ text: "", options: ["", ""], correct_option: 0 }]);
       onCreated();
@@ -81,10 +96,10 @@ function CreateQuizForm({ courses, onCreated }) {
   return (
     <form onSubmit={submit} className="card">
       <div className="form-row" style={{ marginBottom: 14 }}>
-        <select className="field" value={courseId} onChange={(e) => setCourseId(e.target.value)} required>
+        {fixedCourse ? <p className="fixed-course-label"><span>Posting to</span><strong>{fixedCourse.code} · {fixedCourse.name}</strong></p> : <select className="field" value={courseId} onChange={(e) => setCourseId(e.target.value)} required>
           <option value="">Course</option>
           {courses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
+        </select>}
         <input className="field" placeholder="Quiz title" value={title} onChange={(e) => setTitle(e.target.value)} required style={{ flex: 1, minWidth: 160 }} />
       </div>
 
@@ -126,7 +141,7 @@ function CreateQuizForm({ courses, onCreated }) {
   );
 }
 
-function GradingPanel({ assignment, onGraded }) {
+export function GradingPanel({ assignment, onGraded }) {
   const [submissions, setSubmissions] = useState([]);
   const [marksInput, setMarksInput] = useState({});
   const [error, setError] = useState("");
@@ -154,7 +169,7 @@ function GradingPanel({ assignment, onGraded }) {
       {submissions.map((s) => (
         <div key={s.id} className="form-row" style={{ alignItems: "center", fontSize: 13, padding: "4px 0" }}>
           <span style={{ fontFamily: "var(--font-mono)" }}>Student #{s.student_id}</span>
-          <a href={s.file_url} target="_blank" rel="noreferrer" className="btn-text">view file</a>
+          {/^(https?:)\/\//i.test(s.file_url || "") ? <a href={s.file_url} target="_blank" rel="noreferrer" className="btn-text">View assignment copy</a> : <span className="pill pill-muted">File link unavailable</span>}
           {s.marks_obtained !== null ? (
             <span className="pill pill-ok">Graded {s.marks_obtained}</span>
           ) : (
@@ -180,7 +195,6 @@ function GradingPanel({ assignment, onGraded }) {
 
 export default function FacultyDashboard() {
   const { user, logout } = useAuth();
-  const navigate = useNavigate();
   const { page = "dashboard" } = useParams();
 
   const [courses, setCourses] = useState([]);
@@ -188,7 +202,7 @@ export default function FacultyDashboard() {
   const [students, setStudents] = useState([]);
   const [attendanceSummaries, setAttendanceSummaries] = useState({});
   const [error, setError] = useState("");
-  const [newCourse, setNewCourse] = useState({ name: "", code: "", department: "", semester: "" });
+  const [newCourse, setNewCourse] = useState({ name: "", code: "", department: user.department || "", semester: "", course_type: "academic" });
   const [gradingAssignmentId, setGradingAssignmentId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -231,30 +245,8 @@ export default function FacultyDashboard() {
     setError("");
     try {
       await apiFetch("/courses/", { method: "POST", body: JSON.stringify(newCourse) });
-      setNewCourse({ name: "", code: "", department: "", semester: "" });
+      setNewCourse({ name: "", code: "", department: user.department || "", semester: "", course_type: "academic" });
       await loadCourses();
-    } catch (err) {
-      setError(err.message);
-    }
-  };
-
-  const scheduleAndJoin = async (course) => {
-    try {
-      const session = await apiFetch("/attendance/sessions", {
-        method: "POST",
-        body: JSON.stringify({ course_id: course.id }),
-      });
-      navigate("/classroom", {
-        state: {
-          sessionId: session.id,
-          roomId: session.jitsi_room_id,
-          courseId: course.id,
-          courseName: course.name,
-          studentId: user.id,
-          studentName: user.name,
-          isFaculty: true,
-        },
-      });
     } catch (err) {
       setError(err.message);
     }
@@ -270,7 +262,7 @@ export default function FacultyDashboard() {
   const filteredCourses = useMemo(() => courses.filter((course) => `${course.name} ${course.code} ${course.department || ""}`.toLowerCase().includes(search.toLowerCase())), [courses, search]);
   const filteredStudents = useMemo(() => students.filter((student) => `${student.name} ${student.email} ${student.department || ""}`.toLowerCase().includes(search.toLowerCase())), [students, search]);
 
-  if (loading) return <div className="loading-screen"><span className="loading-mark">LMS</span><p>Preparing the faculty console…</p></div>;
+  if (loading) return <BrandLoading>Preparing the faculty console…</BrandLoading>;
 
   return (
     <DashboardShell user={user} title="Faculty Portal" roleLabel="Faculty" onLogout={logout} searchValue={search} onSearch={setSearch} searchPlaceholder="Search courses or students…">
@@ -282,7 +274,7 @@ export default function FacultyDashboard() {
         <StatCard icon="assignments" label="Assignments" value={assignmentCount} tone="amber" />
         <StatCard icon="alert" label="At-risk students" value={atRiskStudents.length} tone="red" detail={averageAttendance === null ? "No attendance recorded" : `${averageAttendance}% roster average`} />
       </section>}
-      {page === "dashboard" && <div className="page-actions"><Link className="btn btn-primary" to="/faculty/courses">Open your courses</Link><Link className="btn btn-soft" to="/faculty/create-course">Create a course</Link><Link className="btn btn-soft" to="/faculty/roster">View student roster</Link></div>}
+      {page === "dashboard" && <div className="page-actions"><Link className="btn btn-primary" to="/faculty/courses">Open your courses</Link><Link className="btn btn-soft" to="/faculty/schedule">Schedule a class</Link><Link className="btn btn-soft" to="/faculty/create-course">Create a course</Link><Link className="btn btn-soft" to="/faculty/roster">View student roster</Link></div>}
 
       <div className="page-grid">
         <div className="content-stack">
@@ -291,20 +283,17 @@ export default function FacultyDashboard() {
             {!filteredCourses.length && <EmptyState>{search ? "No course matches your search." : "Create your first course to get started."}</EmptyState>}
             <div className="course-list">{filteredCourses.map((course) => {
               const assignments = assignmentsByCourse[course.id] || [];
-              return <article key={course.id} className="card course-card"><div className="course-row"><div><span className="course-name">{course.name}</span><span className="course-code">{course.code}</span><div className="course-meta"><span>{course.department || "Department not set"}</span><span>{course.semester || "Semester not set"}</span><span>{assignments.length} assignment{assignments.length === 1 ? "" : "s"}</span></div></div>{page === "courses" && <button onClick={() => scheduleAndJoin(course)} className="btn btn-primary start-class-btn"><Icon name="video" /> Start class now</button>}</div>
+              return <article key={course.id} className="card course-card"><div className="course-row"><div><div className="course-title-line"><span className="course-name">{course.name}</span><span className="pill pill-muted">{course.course_type === "non_academic" ? "Non-Academic" : "Academic"}</span></div><span className="course-code">{course.code}</span><div className="course-meta"><span>{course.department || "Department not set"}</span><span>{course.semester || "Semester not set"}</span><span>{assignments.length} assignment{assignments.length === 1 ? "" : "s"}</span></div></div>{page === "courses" && <Link to={`/faculty/courses/${course.id}`} className="btn btn-primary">Open course →</Link>}</div>
                 {page === "grading" && assignments.length > 0 && <div className="assignment-list"><p className="mini-heading">Grading</p>{assignments.map((assignment) => <div key={assignment.id} className="item-row"><div className="split-row"><span>{assignment.title}</span><button onClick={() => setGradingAssignmentId(gradingAssignmentId === assignment.id ? null : assignment.id)} className="btn-text">{gradingAssignmentId === assignment.id ? "Hide submissions" : "Grade submissions →"}</button></div>{gradingAssignmentId === assignment.id && <GradingPanel assignment={assignment} onGraded={loadCourses} />}</div>)}</div>}
                 {page === "grading" && !assignments.length && <p className="footnote">No assignments posted for this course.</p>}
-                {page === "courses" && <CourseEnrollmentPanel course={course} />}
               </article>;
             })}</div>
           </section>}
 
-          {page === "assignments" && (<section className="section" id="coursework"><div className="section-title-row"><div><p className="section-eyebrow">Coursework</p><h2 className="section-title">Post an assignment</h2></div></div><CreateAssignmentForm courses={courses} onCreated={loadCourses} /></section>)}
-          {page === "quizzes" && (<section className="section"><div className="section-title-row"><h2 className="section-title">Build a quiz</h2></div><CreateQuizForm courses={courses} onCreated={loadCourses} /></section>)}
         </div>
 
         <aside className="content-stack">
-          {page === "create-course" && (<section className="card panel-card create-panel"><div className="section-title-row"><div><p className="section-eyebrow">Course setup</p><h3>Create a course</h3></div><Icon name="courses" /></div><form onSubmit={handleCreateCourse} className="form-grid one-column"><label className="field-label">Course name<input className="field" placeholder="Cloud Computing" value={newCourse.name} onChange={(event) => setNewCourse({ ...newCourse, name: event.target.value })} required /></label><label className="field-label">Course code<input className="field" placeholder="CS401" value={newCourse.code} onChange={(event) => setNewCourse({ ...newCourse, code: event.target.value })} required /></label><label className="field-label">Department<input className="field" placeholder="Computer Science" value={newCourse.department} onChange={(event) => setNewCourse({ ...newCourse, department: event.target.value })} /></label><label className="field-label">Semester<input className="field" placeholder="Semester 7" value={newCourse.semester} onChange={(event) => setNewCourse({ ...newCourse, semester: event.target.value })} /></label><button type="submit" className="btn btn-primary">Create course</button></form></section>)}
+          {page === "create-course" && (<section className="card panel-card create-panel"><div className="section-title-row"><div><p className="section-eyebrow">Course setup</p><h3>Create a course</h3></div><Icon name="courses" /></div><form onSubmit={handleCreateCourse} className="form-grid one-column"><label className="field-label">Course name<input className="field" placeholder="Cloud Computing" value={newCourse.name} onChange={(event) => setNewCourse({ ...newCourse, name: event.target.value })} required /></label><label className="field-label">Course code<input className="field" placeholder="CS401" value={newCourse.code} onChange={(event) => setNewCourse({ ...newCourse, code: event.target.value })} required /></label><CourseTypeField value={newCourse.course_type} onChange={(event) => setNewCourse({ ...newCourse, course_type: event.target.value })} /><label className="field-label">Department<input className="field" value={newCourse.department} readOnly required aria-describedby="course-department-help" /><small id="course-department-help">Your assigned department. Contact your administrator if it is missing or incorrect.</small></label><label className="field-label">Semester<input className="field" placeholder="Semester 7" value={newCourse.semester} onChange={(event) => setNewCourse({ ...newCourse, semester: event.target.value })} /></label><button type="submit" className="btn btn-primary">Create course</button></form></section>)}
           {page === "dashboard" && (<section className="card panel-card"><div className="section-title-row"><h3>Attendance snapshot</h3><Icon name="chart" /></div><div className="attendance-number">{averageAttendance === null ? "—" : `${averageAttendance}%`}</div><p className="footnote">Average across students with recorded attendance.</p><div className="progress-track"><div className={`progress-fill ${averageAttendance !== null && averageAttendance < 75 ? "risk" : ""}`} style={{ width: `${averageAttendance || 0}%` }} /></div></section>)}
           {page === "dashboard" && atRiskStudents.length > 0 && <section className="card panel-card risk-panel"><div className="section-title-row"><h3>Needs attention</h3><Icon name="alert" /></div>{atRiskStudents.slice(0, 5).map((student) => <div className="item-row split-row" key={student.id}><span>{student.name}</span><span className="pill pill-risk">{attendanceSummaries[student.id].percent}%</span></div>)}</section>}
         </aside>

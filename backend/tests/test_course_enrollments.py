@@ -11,6 +11,7 @@ import app.models
 from app.core.security import create_access_token
 from app.database import Base, get_db
 from app.models.user import User, UserRole
+from app.models.institution import Institution, Department
 from app.models.course import Course, Enrollment
 from app.models.assignment import Assignment, Submission
 from app.models.attendance import Attendance, ClassSession
@@ -23,12 +24,16 @@ class CourseEnrollmentTest(unittest.TestCase):
         self.engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
         Base.metadata.create_all(self.engine)
         self.db = sessionmaker(bind=self.engine)()
+        self.db.add(Institution(id=1, name="Isolated test institution", email_domain="college.edu"))
+        self.db.flush()
+        self.db.add(Department(institution_id=1, name="CS"))
+        self.db.commit()
         for ident, role in [(1, UserRole.faculty), (2, UserRole.faculty), (3, UserRole.student),
                             (4, UserRole.student), (5, UserRole.hod), (6, UserRole.admin)]:
-            self.db.add(User(id=ident, name=f"Test {ident}", email=f"test{ident}@hitam.org", role=role, hashed_password="unused"))
+            self.db.add(User(institution_id=1, id=ident, name=f"Test {ident}", email=f"test{ident}@hitam.org", role=role, hashed_password="unused"))
         self.db.flush()
-        self.db.add_all([Course(id=10, name="Owned", code="OWN", faculty_id=1),
-                         Course(id=20, name="Other", code="OTHER", faculty_id=2)])
+        self.db.add_all([Course(institution_id=1, id=10, name="Owned", code="OWN", faculty_id=1),
+                         Course(institution_id=1, id=20, name="Other", code="OTHER", faculty_id=2)])
         self.db.flush()
         self.db.add_all([Enrollment(student_id=3, course_id=10), Enrollment(student_id=4, course_id=10),
                          Enrollment(student_id=3, course_id=20)])

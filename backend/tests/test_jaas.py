@@ -19,6 +19,7 @@ from app.config import settings
 from app.database import Base, get_db
 from app.core.deps import get_current_user
 from app.models.user import User, UserRole
+from app.models.institution import Institution, Department
 from app.models.course import Course, Enrollment
 from app.models.attendance import ClassSession
 from app.routers.attendance import router
@@ -37,12 +38,16 @@ class JaaSTest(unittest.TestCase):
         self.engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
         Base.metadata.create_all(self.engine)
         self.db = sessionmaker(bind=self.engine)()
+        self.db.add(Institution(id=1, name="Isolated test institution", email_domain="college.edu"))
+        self.db.flush()
+        self.db.add(Department(institution_id=1, name="CS"))
+        self.db.commit()
         for ident, role in [(1, UserRole.faculty), (2, UserRole.student),
                             (3, UserRole.student), (4, UserRole.faculty),
                             (5, UserRole.admin), (6, UserRole.hod)]:
-            self.db.add(User(id=ident, name=f"Test {ident}", email=f"test{ident}@example.invalid",
+            self.db.add(User(institution_id=1, id=ident, name=f"Test {ident}", email=f"test{ident}@example.invalid",
                              hashed_password="unused", role=role))
-        self.db.add(Course(id=1, code="TEST", name="Isolated test course", faculty_id=1))
+        self.db.add(Course(institution_id=1, id=1, code="TEST", name="Isolated test course", faculty_id=1))
         self.db.add(Enrollment(student_id=2, course_id=1))
         self.db.add(ClassSession(id=1, course_id=1, jitsi_room_id="lms-testroom"))
         self.db.commit()
